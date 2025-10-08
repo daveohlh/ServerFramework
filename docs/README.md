@@ -1,7 +1,5 @@
 # Server Framework Documentation
 
-This repository is provided under [the Creative Commons Non-Commercial No-Derivatives license](LICENSE) by default. This means you may use the repositories and associated packages as-is for your personal use, or fork it for credited contribution. Individual commercial licenses may be granted via contacting me ([contact me](mailto:hello@zephyrex.dev)). 
-
 ## Documentation Viewing
 
 ### Recommended: Obsidian
