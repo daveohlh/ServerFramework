@@ -1,0 +1,112 @@
+name: Feature Request
+description: Template for requesting new features and enhancements.
+
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: "Feature Summary"
+      description: "Brief description of the feature being requested"
+      placeholder: "Add support for bulk user import via CSV upload"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem-statement
+    attributes:
+      label: "Problem Statement"
+      description: "What problem does this feature solve? What is the current pain point?"
+      placeholder: "Currently, administrators must manually create users one by one, which is time-consuming and error-prone when onboarding large groups of users."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: "Proposed Solution"
+      description: "Describe how you envision this feature working"
+      placeholder: "Add a CSV upload interface in the admin panel that allows bulk user creation with validation and error reporting."
+    validations:
+      required: true
+
+  - type: textarea
+    id: user-benefits
+    attributes:
+      label: "User Benefits"
+      description: "Who will benefit from this feature and how?"
+      placeholder: "- Administrators can onboard hundreds of users in minutes instead of hours\n- Reduced risk of data entry errors\n- Improved user experience for bulk operations"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: user-type
+    attributes:
+      label: "Primary User Type"
+      description: "Who is the primary user for this feature?"
+      options:
+        - End User
+        - Administrator
+        - Developer
+        - API Consumer
+        - System
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: "Business Priority"
+      description: "How important is this feature?"
+      options:
+        - Critical - Blocking major workflows
+        - High - Significant business value
+        - Medium - Nice to have improvement
+        - Low - Minor enhancement
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical-requirements
+    attributes:
+      label: "Technical Requirements"
+      description: "Any specific technical considerations, constraints, or requirements"
+      placeholder: "- Must support CSV files up to 10MB\n- Should integrate with existing user validation logic\n- Requires audit logging for bulk operations"
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: "Acceptance Criteria"
+      description: "How will we know this feature is complete and working correctly?"
+      placeholder: "- [ ] Users can upload CSV files with user data\n- [ ] System validates data and shows preview before import\n- [ ] Failed imports show clear error messages\n- [ ] Successful imports send confirmation emails"
+    validations:
+      required: false
+
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: "Use Cases / Scenarios"
+      description: "Specific scenarios where this feature would be used"
+      placeholder: "1. New client onboarding with 200+ employees\n2. Annual user access review and bulk updates\n3. Integration with HR systems for new hire processing"
+    validations:
+      required: false
+
+  - type: textarea
+    id: mockups-examples
+    attributes:
+      label: "Mockups / Examples"
+      description: "Screenshots, mockups, or examples of similar features"
+      placeholder: "![Mockup](image-url)\n\nSimilar to how Slack handles bulk user import in their admin panel."
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: "Additional Context"
+      description: "Any other relevant information, research, or context"
+      placeholder: "Customer feedback indicates this is one of the top requested features. Similar functionality exists in competing products."
+    validations:
+      required: false

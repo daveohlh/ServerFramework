@@ -1,0 +1,30 @@
+{
+    "python.formatting.provider": "black",
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "python.testing.pytestArgs": [
+        "src",
+        "--asyncio-mode=auto",
+        "-n",
+        "auto",
+        "--dist=loadfile",
+        "-v",
+        "--tb=short",
+        "--import-mode=importlib"
+    ],
+    "formatFiles.excludedFolders": [ "node_modules", ".vscode", ".git", "dist", ".chrome", ".venv", "__pycache__", ".pytest_cache" ],
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true,
+        "**/.pytest_cache": true,
+        "**/__pycache__": true,
+        "src/sdk": true
+    }
+}

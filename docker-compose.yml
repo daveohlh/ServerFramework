@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  app:
+    image: ghcr.io/${REPOSITORY?err}:${VERSION:-latest}
+    # Add any other necessary configurations for your service below
+    # For example, ports, volumes, environment variables specific to the container, etc.
+    # ports:
+    #   - "80:8080"
+    # volumes:
+    #   - ./data:/app/data
+    # environment:
+    #   - DB_HOST=database
+# You might need to specify network configurations if your app needs to communicate with other services
+# networks:
+#   default:
+#     driver: bridge

@@ -1,0 +1,6 @@
+---
+description: 
+globs: *.py
+alwaysApply: false
+---
+All imports should be relative to ./src - this means NEVER `from src.x import y` - ALWAYS `from x import y`

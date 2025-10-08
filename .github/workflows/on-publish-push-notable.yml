@@ -1,0 +1,23 @@
+name: Build and Push to GHCR
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - legacy
+  release:
+    types: [published]
+
+jobs:
+  call-reusable-build:
+    name: Call Reusable Build and Push Workflow
+    uses: JamesonRGrieve/Workflows/.github/workflows/publish-ghcr.yml@main
+    permissions:
+      contents: read # To checkout the repository
+      packages: write # To push packages to GHCR
+    with:
+      build_type: ${{ (github.ref_name == 'dev' && 'dev') || (github.ref_name == 'main' && 'main') || (github.ref_name == 'legacy' && 'legacy') || (github.event_name == 'release' && 'release') }}
+      git_ref: ${{ github.ref }}
+      add_sha_tag: true
+    secrets: inherit

@@ -1,0 +1,15 @@
+name: Lint Trigger
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - dev
+
+permissions:
+  contents: write
+
+jobs:
+  call-reusable-lint:
+    name: Call Reusable Lint Workflow
+    uses: JamesonRGrieve/Workflows/.github/workflows/test-py-lint.yml@main

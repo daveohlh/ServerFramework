@@ -1,0 +1,111 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "server"
+version = "0.0.0"
+description = "SDK for interacting with the API"
+readme = "README.md"
+authors = [
+    {name = "API SDK Team", email = "sdk@example.com"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+keywords = ["api", "sdk", "client"]
+dependencies = [
+    "requests>=2.25.0",
+]
+requires-python = ">=3.8"
+
+[project.urls]
+Homepage = "https://github.com/example/api-sdk"
+Documentation = "https://docs.example.com/api-sdk"
+Repository = "https://github.com/example/api-sdk.git"
+Issues = "https://github.com/example/api-sdk/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-xdist>=3.0.0",
+    "pytest-cov>=2.12.0",
+    "black>=22.1.0",
+    "isort>=5.10.0",
+    "mypy>=0.910",
+    "pylint>=2.12.0",
+]
+docs = [
+    "sphinx>=4.0.0",
+    "sphinx-rtd-theme>=1.0.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "."}
+packages = ["sdk"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.black]
+line-length = 88
+target-version = ["py38", "py39", "py310", "py311"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["."]
+python_files = "*_test.py"
+addopts = "-v -ra -s --order-dependencies --import-mode=importlib"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+
+markers = [
+    "db: Database tests",
+    "bll: Business logic tests", 
+    "ep: Endpoint tests",
+    "gql: GraphQL tests",
+    "sdk: SDK tests",
+    "user: User management tests",
+    "team: Team management tests",
+    "providers: Provider-related tests",
+    "extensions: Extension management tests",
+    "seed: Data seeding tests",
+    "auth: Authentication tests",
+    "migration: Migration system tests",
+    "basic: Basic migration functionality tests",
+    "core: Core migration tests",
+    "extension: Extension migration tests",
+    "complex: Complex migration scenario tests",
+    "regenerate: Migration regeneration tests",
+    "mfa: Multi-factor authentication tests",
+    "payment: Payment system tests",
+    "synchronize: Synchronization tests",
+    "mock: Mock-based tests",
+    "real: Real database tests",
+    "stripe: Stripe payment provider tests"
+]
+
+# Parallel execution settings
+# --dist=loadscope: Distribute tests by scope (class-level)
+# -n auto: Automatically detect number of CPUs and create workers
+# Override with: -n <number> to specify worker count
+# Override with: -n 0 to disable parallel execution
+# Override with: --dist=loadfile to distribute by file instead
+# --maxfail=1: Stop on first failure when debugging
+# --tb=short: Shorter traceback format for parallel runs 

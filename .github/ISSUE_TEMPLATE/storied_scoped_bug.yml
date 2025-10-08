@@ -1,0 +1,97 @@
+name: Bug Report
+description: Template for reporting bugs and issues.
+
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: "Description"
+      description: "Brief description of the bug"
+      placeholder: "When attempting to update a team, a **500 Internal Server Error** is returned."
+    validations:
+      required: true
+
+  - type: textarea
+    id: prerequisite
+    attributes:
+      label: "Pre-requisite"
+      description: "What conditions or setup must exist before this bug can occur"
+      placeholder: "A team should already exist."
+    validations:
+      required: false
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: "Steps to Reproduce"
+      description: "Detailed steps to reproduce the issue"
+      placeholder: "1. Launch the Postman application.\n2. Select the **PUT** method and use the following URL:\n`{{dev server}}/v1/user/{user_id}/team/{id}`\n3. Pass the following body and execute:\n```json\n{\n  \"team\": {\n    \"name\": \"TeamS#1\"\n  }\n}\n```"
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: "Actual Behavior"
+      description: "What actually happens when the bug occurs"
+      placeholder: "500 Internal Server Error\n```json\n{\n    \"detail\": {\n        \"message\": \"An unexpected error occurred\",\n        \"details\": \"'UserManager' object has no attribute 'teams'\"\n    }\n}\n```"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: "Expected Behavior"
+      description: "What should happen instead"
+      placeholder: "The team should be updated successfully with a 200 OK response."
+    validations:
+      required: false
+
+  - type: input
+    id: environment
+    attributes:
+      label: "Environment"
+      description: "Where this bug occurs"
+      placeholder: "API Dev Server, Production, Local Development"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: "Severity"
+      description: "How severe is this bug"
+      options:
+        - Critical - System unusable
+        - High - Major functionality broken
+        - Medium - Minor functionality affected
+        - Low - Cosmetic or minor issue
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: "Impact"
+      description: "What functionality is affected and how it impacts users"
+      placeholder: "Unable to update teams"
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: "Additional Context"
+      description: "Any other relevant information, logs, or context"
+      placeholder: "Error logs, browser console output, or other relevant details"
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: "Screenshot / Media"
+      description: "Screenshots, videos, or other media demonstrating the issue"
+      placeholder: "![Image](https://github.com/user-attachments/assets/69b4a5c1-99eb-4953-92d3-404226b9a559)"
+    validations:
+      required: false
