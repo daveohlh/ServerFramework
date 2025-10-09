@@ -1,12 +1,9 @@
 from typing import ClassVar, List, Optional, Type
 
 import pytest
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, ValidationError
-
-# Import AbstractBLLManager for proper inheritance
-from logic.AbstractLogicManager import AbstractBLLManager
 
 from lib.Pydantic2FastAPI import (
     AuthType,
@@ -14,8 +11,8 @@ from lib.Pydantic2FastAPI import (
     ExampleGenerator,
     HTTPMethod,
     NestedResourceConfig,
-    RouteType,
     RouterMixin,
+    RouteType,
     create_manager_factory,
     create_router_from_manager,
     extract_body_data,
@@ -27,6 +24,9 @@ from lib.Pydantic2FastAPI import (
     serialize_for_response,
     static_route,
 )
+
+# Import AbstractBLLManager for proper inheritance
+from logic.AbstractLogicManager import AbstractBLLManager
 
 
 # Test Models and Managers for real functionality testing
@@ -524,6 +524,50 @@ class TestRouterCreation:
 
         # Check that static route was created
         assert any("/static" in path for path in paths)
+
+    def test_generated_router_openapi_definitions(self, model_registry):
+        """Ensure generated routers expose component definitions in OpenAPI."""
+        from fastapi import FastAPI
+
+        registry = TestModelRegistry()
+        applied_model = registry.apply(TestModel)
+
+        original_models = getattr(model_registry, "_models", {})
+        model_registry._models = {"TestModel": applied_model}
+
+        if not hasattr(model_registry, "models"):
+            model_registry.models = lambda: [applied_model]
+
+        routers = generate_routers_from_model_registry(model_registry)
+
+        app = FastAPI()
+        for router in routers.values():
+            app.include_router(router)
+
+        client = TestClient(app)
+        response = client.get("/openapi.json")
+        assert response.status_code == 200
+
+        schema = response.json()
+        components = schema.get("components", {}).get("schemas", {})
+        assert components
+        assert any(name.startswith("Test") for name in components)
+
+        model_registry._models = original_models
+
+    def test_openapi_generation(self, model_registry):
+        """Ensure FastAPI can generate OpenAPI schema for router."""
+        app = FastAPI()
+        router = create_router_from_manager(TestManager, model_registry)
+        app.include_router(router)
+
+        schema = app.openapi()
+
+        components = schema.get("components", {})
+        schemas = components.get("schemas", {})
+
+        assert "TestModel" in schemas
+        assert schemas["TestModel"].get("title") == "TestModel"
 
     def test_create_router_with_nested_resources(self, model_registry):
         """Test creating router with nested resources."""

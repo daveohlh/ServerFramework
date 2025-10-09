@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+import sys
 import threading
 from abc import ABC
 from datetime import date, datetime, time, timedelta
@@ -23,6 +24,7 @@ from typing import (
 import numpy as np
 import stringcase
 from fastapi import HTTPException
+from fastapi.encoders import ENCODERS_BY_TYPE
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import and_
 from sqlalchemy.orm import Session, joinedload
@@ -625,8 +627,24 @@ class ModelMeta(ModelMetaclass):
         except AttributeError:
             model_fields = None
         if model_fields and item in model_fields:
+            if cls._is_schema_generation_context():
+                raise AttributeError(item)
             return ModelFieldAccessor(cls, item)
         raise AttributeError(item)
+
+    @staticmethod
+    def _is_schema_generation_context() -> bool:
+        frame = sys._getframe(1)
+        depth = 0
+        while frame and depth < 20:
+            module_name = frame.f_globals.get("__name__", "")
+            if module_name.startswith("pydantic") or module_name.startswith(
+                "fastapi.openapi"
+            ):
+                return True
+            frame = frame.f_back
+            depth += 1
+        return False
 
     def __new__(mcs, name, bases, namespace, **kwargs):
         # Collect annotations from non-BaseModel mixins so Pydantic sees inherited fields
@@ -897,6 +915,18 @@ class ModelFieldAccessor:
 
     def isnot(self, other: Any) -> FieldComparison:
         return self._comparison("isnot", other)
+
+    def __repr__(self) -> str:
+        return f"{self.model_cls.__name__}.{self.field_name}"
+
+
+ENCODERS_BY_TYPE.setdefault(
+    ModelFieldAccessor,
+    lambda value: {
+        "model": value.model_cls.__name__,
+        "field": value.field_name,
+    },
+)
 
 
 class ApplicationModel(BaseModel, DatabaseMixin, metaclass=ModelMeta):
