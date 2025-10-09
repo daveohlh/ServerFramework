@@ -1,5 +1,7 @@
 # Server Framework Documentation
 
+![Generation Paths](./Generation.png)
+
 ## Documentation Viewing
 
 ### Recommended: Obsidian
@@ -66,7 +68,7 @@ Documentation can also be viewed directly in your text editor or GitHub, though 
 
 ### Installation
 ```sh
-git clone git@github.com:ZephyrexTechnologies/ServerFramework.git
+git clone git@github.com:JamesonRGrieve/ServerFramework.git
 cd ServerFramework
 ```
 
