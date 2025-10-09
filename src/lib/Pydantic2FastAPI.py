@@ -13,6 +13,7 @@ from typing import (
     Dict,
     List,
     Optional,
+    Set,
     Type,
     TypeVar,
     Union,
@@ -37,7 +38,21 @@ from fastapi import (
 )
 from fastapi.params import Depends as DependsParam
 from fastapi.security import HTTPBasic
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, ValidationError, create_model
+
+# Sentinel import for Pydantic's undefined values
+try:
+    from pydantic_core import PydanticUndefined
+except ImportError:  # pragma: no cover - fallback for alternate Pydantic packages
+    try:
+        from pydantic.fields import PydanticUndefined  # type: ignore
+    except ImportError:  # pragma: no cover - ultimate fallback
+
+        class _UndefinedSentinel:
+            pass
+
+        PydanticUndefined = _UndefinedSentinel()  # type: ignore
 
 # Compatibility patch for Pydantic 2.x ValidationError.from_exception_data
 try:
@@ -384,6 +399,31 @@ class ExampleGenerator:
         # Fallback to field name conversion if no pattern matches
         return ExampleGenerator.field_name_to_example(field_name)
 
+    _unsafe_default_type_names: ClassVar[Set[str]] = {"ModelFieldAccessor"}
+
+    @staticmethod
+    def _is_serializable_default(value: Any) -> bool:
+        """Return True if the default can be safely used in an OpenAPI example."""
+
+        if value is None:
+            return True
+
+        value_type = value.__class__.__name__
+        if value is PydanticUndefined or value_type in {
+            "PydanticUndefinedType",
+            "UndefinedType",
+        }:
+            return False
+
+        if value_type in ExampleGenerator._unsafe_default_type_names:
+            return False
+
+        try:
+            json.dumps(jsonable_encoder(value))
+        except (TypeError, ValueError):
+            return False
+        return True
+
     @staticmethod
     def _generate_bool_example(field_name: str) -> bool:
         """Generate boolean examples using pattern matching."""
@@ -430,13 +470,27 @@ class ExampleGenerator:
 
                 # Check if field has a default value
                 if not field_info.is_required():
-                    if field_info.default is not None:
-                        example[field_name] = field_info.default
+                    default_value = field_info.default
+                    if (
+                        default_value is not None
+                        and ExampleGenerator._is_serializable_default(default_value)
+                    ):
+                        example[field_name] = default_value
                         continue
-                    # Check if field has a default factory
                     elif field_info.default_factory is not None:
-                        example[field_name] = field_info.default_factory()
-                        continue
+                        try:
+                            generated_default = field_info.default_factory()
+                        except Exception as exc:  # pragma: no cover - defensive guard
+                            logger.debug(
+                                "Default factory for %s on %s raised %s",
+                                field_name,
+                                model_cls.__name__,
+                                exc,
+                            )
+                            generated_default = None
+                        if ExampleGenerator._is_serializable_default(generated_default):
+                            example[field_name] = generated_default
+                            continue
 
                 # Check for example in field metadata
                 if (

@@ -797,6 +797,34 @@ class TestExampleGenerator:
         assert example["id"] is None or len(str(example["id"])) == 36  # UUID or None
         assert isinstance(example["name"], str)
 
+    def test_generate_example_ignores_non_serializable_defaults(self):
+        """Ensure generated examples omit ModelFieldAccessor and undefined defaults."""
+
+        ExampleGenerator.clear_cache()
+
+        from logic.AbstractLogicManager import ModelFieldAccessor
+        from logic.BLL_Auth import TeamModel
+
+        try:
+            from pydantic_core import PydanticUndefined
+        except ImportError:  # pragma: no cover - compatibility fallback
+            try:
+                from pydantic.fields import PydanticUndefined  # type: ignore
+            except ImportError:  # pragma: no cover - ultimate fallback
+                PydanticUndefined = object()
+
+        example = ExampleGenerator.generate_example_for_model(TeamModel)
+
+        assert isinstance(example, dict)
+        assert example["id"] is not None
+        assert example["id"].__class__.__name__ != "ModelFieldAccessor"
+
+        for value in example.values():
+            assert value is not PydanticUndefined
+            value_type = value.__class__.__name__
+            assert value_type != "ModelFieldAccessor"
+            assert value_type != "PydanticUndefinedType"
+
     def test_generate_operation_examples(self):
         """Test operation example generation."""
         examples = ExampleGenerator.generate_operation_examples(
