@@ -1,38 +1,24 @@
-# Tech Stack
-
-- [sesh.fyi timestamp tool](https://sesh.fyi/timestamp/) – sync your time across timezones  
-- **Python** – backend development  
-- **TypeScript** – scripting/frontend logic  
-- **Docker** – containerization  
-- **Obsidian** – internal documentation and knowledge management  
-
 # Quick Start && Requirements
 
 ### Clone the repo:
 
-    git clone https://github.com/JamesonRGrieve/ServerFramework.git
+`git clone https://github.com/JamesonRGrieve/ServerFramework.git`
 
 ### Basic Operations
 - **Start the application**: `python src/app.py` (handles virtual environment setup automatically)
-- **Run tests**: `pytest` (use specific test markers for targeted testing)
+- **Run tests**: `pytest` should be configured to discover tests through the VS Code test explorer
 - **Format code**: `black src/` (configured with 88-character line length)
 - **Type checking**: `mypy src/` (if available in dev dependencies)
 
-### How to find docs
+### Advanced Documentation 
 
 There is this obsidian vault with an extension that hides empty folders pre-installed, so the layer specific docs are easy to find and are formatted nicely.
 
 # Backend Architecture and Idioms
 
-This is a **FastAPI-based server framework** with a layered architecture designed for scalability and modularity. The codebase follows strict separation of concerns with an extension-based plugin system.
+This is a FastAPI, SQLAlchemy and Strawberry based server framework with a layered architecture designed for scalability and modularity. The codebase follows strict separation of concerns with an extension-based plugin system.
 
-## System Architecture Layers
-As previous mentioned each of then have a Documentation file inside their folder that you can easily see with obsidian but also with the IDE of choice
-1. **Database Layer (DB_*.py)**: SQLAlchemy ORM models with declarative base
-2. **Business Logic Layer (BLL_*.py)**: Core business logic managers with CRUD operations
-3. **Endpoint Layer (EP_*.py)**: FastAPI router implementations with automatic CRUD endpoint generation
-4. **Extensions (EXT_*.py)**: Plugin system for adding modular functionality
-5. **Providers (PRV_*.py)**: Standardized interfaces to external services
+The goal of the project is to have common sense defaults for each of these 3 core package implementations, with the option to override any of them through ClassVar in `logic`, developers building implementations should **only have to create one or more extensions** (folders in the `extensions` folder) and should not have to touch any other files in order to achieve any reasonable custom functionality. 
 
 ## Key Architectural Patterns
 
@@ -46,40 +32,17 @@ As previous mentioned each of then have a Documentation file inside their folder
 
 | Prefix   | Meaning                 |
 | -------- | ----------------------- |
-| `DB_`    | Database models         |
-| `BLL_`   | Business Logic managers |
+| `DB_`    | Database                |
+| `BLL_`   | Business Logic          |
 | `EP_`    | API Endpoints           |
-| `EXT_`   | Extensions modules      |
-| `PRV_`   | Providers interfaces    |
+| `EXT_`   | Extensions              |
+| `PRV_`   | Providers               |
 | `SVC_`   | Services                |
-| `SYS_`   | System                  |
-| `PIP_`   | pip dependency          |
-| `*_test` | tests                   |
+| `*_test` | Tests                   |
 
 # Endpoints
 
-- **GraphQL**: http://localhost:1996/graphql  
-- **REST Docs**: http://localhost:1996/docs#/  
-- **Local LLM Gateway**: https://llm.zephyrex.dev/
+- **REST Docs**: http://localhost:1996/docs 
+- **GQL Docs**: http://localhost:1996/graphql  
 
-# Git Workflow
 
-Start a new feature branch from `dev`:
-
-    git checkout dev
-    git pull origin dev
-    git checkout -b feat/your-feature-name
-
-Commit and push:
-
-    git commit -m "Clear commit message"
-    git push origin feat/your-feature-name
-
-# CI/CD
-
-**TODO**:  
-- GitHub Actions 
-- Automate testing, linting, and deployment  
-
-# Tests
-**TODO**
