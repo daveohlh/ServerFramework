@@ -1,4 +1,4 @@
-from typing import ClassVar, List, Optional, Type
+from typing import ClassVar, Dict, List, Optional, Type
 
 import pytest
 from fastapi import APIRouter, FastAPI, HTTPException
@@ -669,6 +669,106 @@ class TestFastAPIIntegration:
         data = response.json()
         assert data["message"] == "Static method called"
         assert data["has_registry"] is True
+
+
+class TestQueryParameterInjection:
+    """Ensure query parameters populate network models correctly."""
+
+    class QueryAwareManager(TestManager):
+        __test__ = False
+        auth_type = AuthType.NONE
+        _shared_store: Dict[str, TestModel] = {}
+
+        def __init__(self, requester_id: Optional[str] = None, model_registry=None):
+            super().__init__(requester_id=requester_id, model_registry=model_registry)
+            self._data_store = self.__class__._shared_store
+
+        @staticmethod
+        def _as_list(value):
+            if value is None:
+                return []
+            if isinstance(value, str):
+                return [part for part in value.split(",") if part]
+            return list(value)
+
+        def get(self, id: str, include=None, fields=None):
+            entity = super().get(id=id, include=include, fields=fields)
+            if not entity:
+                return None
+            include_values = self._as_list(include)
+            fields_values = self._as_list(fields)
+            if include_values:
+                entity.name = ",".join(include_values)
+            entity.value = len(fields_values)
+            return entity
+
+        def list(
+            self,
+            include=None,
+            fields=None,
+            offset: int = 0,
+            limit: int = 100,
+            sort_by=None,
+            sort_order="asc",
+            **filters,
+        ):
+            results = super().list(
+                include=include,
+                fields=fields,
+                offset=offset,
+                limit=limit,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                **filters,
+            )
+            if results:
+                include_values = self._as_list(include)
+                fields_values = self._as_list(fields)
+                if include_values:
+                    results[0].name = ",".join(include_values)
+                results[0].value = len(fields_values)
+            return results
+
+    def test_get_route_populates_query_model(self, model_registry):
+        """GET route should populate include/fields query parameters."""
+        manager_cls = self.QueryAwareManager
+        manager_cls._shared_store = {}
+        seed_manager = manager_cls()
+        entity = seed_manager.create(name="Seed", value=0)
+
+        app = FastAPI()
+        router = create_router_from_manager(manager_cls, model_registry)
+        app.include_router(router)
+        client = TestClient(app)
+
+        response = client.get(
+            f"/v1/test/{entity.id}?include=alpha&include=beta&fields=id,name"
+        )
+        assert response.status_code == 200
+        payload = response.json()["test"]
+        assert payload["name"] == "alpha,beta"
+        assert payload["value"] == 2
+
+    def test_list_route_populates_query_model(self, model_registry):
+        """LIST route should handle repeated and CSV query parameters."""
+        manager_cls = self.QueryAwareManager
+        manager_cls._shared_store = {}
+        seed_manager = manager_cls()
+        seed_manager.create(name="First", value=0)
+        seed_manager.create(name="Second", value=0)
+
+        app = FastAPI()
+        router = create_router_from_manager(manager_cls, model_registry)
+        app.include_router(router)
+        client = TestClient(app)
+
+        response = client.get(
+            "/v1/test?include=gamma,delta&fields=id&fields=name"
+        )
+        assert response.status_code == 200
+        payload = response.json()["tests"][0]
+        assert payload["name"] == "gamma,delta"
+        assert payload["value"] == 2
 
 
 class TestCompleteWorkflow:

@@ -121,6 +121,11 @@ Automatic dependency resolution for manager instantiation.
 - Model registry access
 - Extension configuration
 
+### Query Parameter Handling
+- `create_query_model_dependency()` materializes network query models directly from the request query string.
+- Supports repeated parameters (`?include=a&include=b`) and CSV lists (`?fields=id,name`) while respecting field aliases.
+- Automatically normalizes list-compatible annotations and preserves primitive defaults for scalar-only fields.
+
 ### Custom Route Support
 
 #### Static Route Integration
