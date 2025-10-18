@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timedelta
 from typing import Any, Optional
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 from pydantic import BaseModel, Field
@@ -969,6 +969,60 @@ class TestAbstractLogicManager:
 
                 # Cleanup
                 del self.base_manager.search_transformers["custom_search"]
+
+    def test_resolve_load_only_columns_adds_required_fields(self):
+        """Required audit columns should always be included for load_only selections."""
+
+        class DummyAttr:
+            def __init__(self, key):
+                self.key = key
+
+        dummy_db = type("DummyDB", (), {})()
+        dummy_db.__name__ = "DummyDB"
+        dummy_db.id = DummyAttr("id")
+        dummy_db.name = DummyAttr("name")
+        dummy_db.created_at = DummyAttr("created_at")
+        dummy_db.created_by_user_id = DummyAttr("created_by_user_id")
+        dummy_db.updated_at = DummyAttr("updated_at")
+        dummy_db.updated_by_user_id = DummyAttr("updated_by_user_id")
+        dummy_db.__mapper__ = type(
+            "DummyMapper",
+            (),
+            {
+                "attrs": {
+                    "id": None,
+                    "name": None,
+                    "created_at": None,
+                    "created_by_user_id": None,
+                    "updated_at": None,
+                    "updated_by_user_id": None,
+                }
+            },
+        )()
+
+        with patch.object(BaseManagerForTest, "DB", new_callable=PropertyMock) as db_prop:
+            db_prop.return_value = dummy_db
+            columns = self.base_manager._resolve_load_only_columns(["name"])
+
+        keys = {getattr(column, "key", None) for column in columns}
+        assert {"name", "id", "created_at", "created_by_user_id", "updated_at", "updated_by_user_id"} <= keys
+
+    def test_resolve_load_only_columns_invalid_field(self):
+        """Invalid fields should raise a ValueError with clear messaging."""
+
+        class DummyAttr:
+            def __init__(self, key):
+                self.key = key
+
+        dummy_db = type("DummyDB", (), {})()
+        dummy_db.__name__ = "DummyDB"
+        dummy_db.id = DummyAttr("id")
+        dummy_db.__mapper__ = type("DummyMapper", (), {"attrs": {"id": None}})()
+
+        with patch.object(BaseManagerForTest, "DB", new_callable=PropertyMock) as db_prop:
+            db_prop.return_value = dummy_db
+            with pytest.raises(ValueError, match="Invalid fields for DummyDB: invalid_field"):
+                self.base_manager._resolve_load_only_columns(["invalid_field"])
 
     def test_batch_update_operation(self):
         """Test batch updating entities."""

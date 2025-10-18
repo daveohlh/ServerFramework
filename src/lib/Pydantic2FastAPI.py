@@ -40,6 +40,7 @@ from fastapi import (
 from fastapi.encoders import jsonable_encoder
 from fastapi.params import Depends as DependsParam
 from fastapi.security import HTTPBasic
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError, create_model
 
 # Sentinel import for Pydantic's undefined values
@@ -198,6 +199,56 @@ def _coerce_sequence_values(raw_values: List[str]) -> List[str]:
         else:
             coerced.append(raw_value)
     return coerced
+
+
+def _normalize_projection_values(value: Optional[Union[List[str], str]]) -> List[str]:
+    """Normalize projection parameters (fields/includes) into a clean list of strings."""
+    if not value:
+        return []
+
+    if isinstance(value, str):
+        return [segment.strip() for segment in value.split(",") if segment.strip()]
+
+    if isinstance(value, (list, tuple, set, frozenset)):
+        normalized: List[str] = []
+        for item in value:
+            if item is None:
+                continue
+            item_str = str(item).strip()
+            if item_str:
+                normalized.append(item_str)
+        return normalized
+
+    return []
+
+
+def _extract_projection_roots(values: List[str]) -> Set[str]:
+    """Get root keys from dotted projection paths."""
+    roots: Set[str] = set()
+    for value in values:
+        if not value:
+            continue
+        roots.add(value.split(".", 1)[0])
+    return roots
+
+
+def _apply_field_projection_to_entity(
+    entity: Any, fields: List[str], includes: List[str]
+) -> Any:
+    """Apply field projection to a serialized entity while preserving included relations."""
+    if not fields or entity is None:
+        return entity
+
+    if not isinstance(entity, dict):
+        return entity
+
+    allowed_keys = _extract_projection_roots(fields)
+    allowed_keys.update(_extract_projection_roots(includes))
+
+    if not allowed_keys:
+        return entity
+
+    return {key: value for key, value in entity.items() if key in allowed_keys}
 
 
 def create_query_model_dependency(model_cls: Type[BaseModel]) -> Callable[[Request], BaseModel]:
@@ -1485,7 +1536,28 @@ def register_route(
                         detail=f"{stringcase.titlecase(resource_name)} with ID '{id}' not found",
                     )
 
-                return network_model.ResponseSingle(**{resource_name: result})
+                response_model_instance = network_model.ResponseSingle(
+                    **{resource_name: result}
+                )
+
+                fields_selection = _normalize_projection_values(query_params.fields)
+                include_selection = _normalize_projection_values(
+                    query_params.include
+                )
+
+                if fields_selection:
+                    serialized_entity = serialize_for_response(
+                        getattr(response_model_instance, resource_name)
+                    )
+                    projected_entity = _apply_field_projection_to_entity(
+                        serialized_entity, fields_selection, include_selection
+                    )
+                    return JSONResponse(
+                        content=jsonable_encoder({resource_name: projected_entity}),
+                        status_code=status.HTTP_200_OK,
+                    )
+
+                return response_model_instance
             except Exception as err:
                 handle_resource_operation_error(err)
 
@@ -1533,7 +1605,33 @@ def register_route(
                     **search_params,
                 )
 
-                return network_model.ResponsePlural(**{resource_name_plural: results})
+                response_model_instance = network_model.ResponsePlural(
+                    **{resource_name_plural: results}
+                )
+
+                fields_selection = _normalize_projection_values(query_params.fields)
+                include_selection = _normalize_projection_values(
+                    query_params.include
+                )
+
+                if fields_selection:
+                    serialized_items = serialize_for_response(
+                        getattr(response_model_instance, resource_name_plural)
+                    )
+                    projected_items = [
+                        _apply_field_projection_to_entity(
+                            item, fields_selection, include_selection
+                        )
+                        for item in serialized_items or []
+                    ]
+                    return JSONResponse(
+                        content=jsonable_encoder(
+                            {resource_name_plural: projected_items}
+                        ),
+                        status_code=status.HTTP_200_OK,
+                    )
+
+                return response_model_instance
             except Exception as err:
                 handle_resource_operation_error(err)
 
@@ -1814,23 +1912,43 @@ def register_route(
                 if not actual_sort_order:
                     actual_sort_order = "asc"
 
-                return network_model.ResponsePlural(
-                    **{
-                        resource_name_plural: get_manager(
-                            manager, manager_property
-                        ).search(
-                            include=actual_include,
-                            fields=actual_fields,
-                            offset=actual_offset,
-                            limit=actual_limit,
-                            sort_by=actual_sort_by,
-                            sort_order=actual_sort_order,
-                            page=actual_page,
-                            pageSize=actual_page_size,
-                            **search_data,
-                        )
-                    }
+                search_results = get_manager(manager, manager_property).search(
+                    include=actual_include,
+                    fields=actual_fields,
+                    offset=actual_offset,
+                    limit=actual_limit,
+                    sort_by=actual_sort_by,
+                    sort_order=actual_sort_order,
+                    page=actual_page,
+                    pageSize=actual_page_size,
+                    **search_data,
                 )
+
+                response_model_instance = network_model.ResponsePlural(
+                    **{resource_name_plural: search_results}
+                )
+
+                fields_selection = _normalize_projection_values(actual_fields)
+                include_selection = _normalize_projection_values(actual_include)
+
+                if fields_selection:
+                    serialized_items = serialize_for_response(
+                        getattr(response_model_instance, resource_name_plural)
+                    )
+                    projected_items = [
+                        _apply_field_projection_to_entity(
+                            item, fields_selection, include_selection
+                        )
+                        for item in serialized_items or []
+                    ]
+                    return JSONResponse(
+                        content=jsonable_encoder(
+                            {resource_name_plural: projected_items}
+                        ),
+                        status_code=status.HTTP_200_OK,
+                    )
+
+                return response_model_instance
             except Exception as err:
                 handle_resource_operation_error(err)
 

@@ -1,4 +1,4 @@
-from typing import ClassVar, Dict, List, Optional, Type
+from typing import Any, ClassVar, Dict, List, Optional, Type
 
 import pytest
 from fastapi import APIRouter, FastAPI, HTTPException
@@ -678,28 +678,23 @@ class TestQueryParameterInjection:
         __test__ = False
         auth_type = AuthType.NONE
         _shared_store: Dict[str, TestModel] = {}
+        last_get_params: ClassVar[Dict[str, Any]] = {}
+        last_list_params: ClassVar[Dict[str, Any]] = {}
 
         def __init__(self, requester_id: Optional[str] = None, model_registry=None):
             super().__init__(requester_id=requester_id, model_registry=model_registry)
             self._data_store = self.__class__._shared_store
-
-        @staticmethod
-        def _as_list(value):
-            if value is None:
-                return []
-            if isinstance(value, str):
-                return [part for part in value.split(",") if part]
-            return list(value)
+            type(self).last_get_params = {}
+            type(self).last_list_params = {}
 
         def get(self, id: str, include=None, fields=None):
+            type(self).last_get_params = {
+                "include": include,
+                "fields": fields,
+            }
             entity = super().get(id=id, include=include, fields=fields)
-            if not entity:
-                return None
-            include_values = self._as_list(include)
-            fields_values = self._as_list(fields)
-            if include_values:
-                entity.name = ",".join(include_values)
-            entity.value = len(fields_values)
+            if entity and include:
+                setattr(entity, "children", [{"id": "child-1"}])
             return entity
 
         def list(
@@ -712,6 +707,10 @@ class TestQueryParameterInjection:
             sort_order="asc",
             **filters,
         ):
+            type(self).last_list_params = {
+                "include": include,
+                "fields": fields,
+            }
             results = super().list(
                 include=include,
                 fields=fields,
@@ -721,54 +720,74 @@ class TestQueryParameterInjection:
                 sort_order=sort_order,
                 **filters,
             )
-            if results:
-                include_values = self._as_list(include)
-                fields_values = self._as_list(fields)
-                if include_values:
-                    results[0].name = ",".join(include_values)
-                results[0].value = len(fields_values)
+            if include:
+                for idx, item in enumerate(results, start=1):
+                    setattr(item, "children", [{"id": f"child-{idx}"}])
             return results
 
     def test_get_route_populates_query_model(self, model_registry):
-        """GET route should populate include/fields query parameters."""
+        """GET route should normalize query parameters and project fields."""
         manager_cls = self.QueryAwareManager
         manager_cls._shared_store = {}
+        manager_cls.last_get_params = {}
         seed_manager = manager_cls()
-        entity = seed_manager.create(name="Seed", value=0)
+        entity = seed_manager.create(name="Seed", value=7)
 
         app = FastAPI()
         router = create_router_from_manager(manager_cls, model_registry)
         app.include_router(router)
         client = TestClient(app)
 
-        response = client.get(
-            f"/v1/test/{entity.id}?include=alpha&include=beta&fields=id,name"
-        )
+        response = client.get(f"/v1/test/{entity.id}?fields=name&fields=value")
         assert response.status_code == 200
         payload = response.json()["test"]
-        assert payload["name"] == "alpha,beta"
-        assert payload["value"] == 2
+        assert set(payload.keys()) == {"name", "value"}
+        assert payload["name"] == "Seed"
+        assert payload["value"] == 7
+        assert manager_cls.last_get_params["fields"] == ["name", "value"]
+        assert manager_cls.last_get_params["include"] is None
 
-    def test_list_route_populates_query_model(self, model_registry):
-        """LIST route should handle repeated and CSV query parameters."""
+    def test_get_route_preserves_includes_with_field_projection(self, model_registry):
+        """GET route should keep included relations even when fields are projected."""
         manager_cls = self.QueryAwareManager
         manager_cls._shared_store = {}
+        manager_cls.last_get_params = {}
         seed_manager = manager_cls()
-        seed_manager.create(name="First", value=0)
-        seed_manager.create(name="Second", value=0)
+        entity = seed_manager.create(name="Seed", value=3)
 
         app = FastAPI()
         router = create_router_from_manager(manager_cls, model_registry)
         app.include_router(router)
         client = TestClient(app)
 
-        response = client.get(
-            "/v1/test?include=gamma,delta&fields=id&fields=name"
-        )
+        response = client.get(f"/v1/test/{entity.id}?fields=name&include=children")
         assert response.status_code == 200
-        payload = response.json()["tests"][0]
-        assert payload["name"] == "gamma,delta"
-        assert payload["value"] == 2
+        payload = response.json()["test"]
+        assert set(payload.keys()) == {"name", "children"}
+        assert payload["name"] == "Seed"
+        assert manager_cls.last_get_params["include"] == ["children"]
+
+    def test_list_route_populates_query_model(self, model_registry):
+        """LIST route should normalize fields and apply projection to each entity."""
+        manager_cls = self.QueryAwareManager
+        manager_cls._shared_store = {}
+        manager_cls.last_list_params = {}
+        seed_manager = manager_cls()
+        seed_manager.create(name="First", value=1)
+        seed_manager.create(name="Second", value=2)
+
+        app = FastAPI()
+        router = create_router_from_manager(manager_cls, model_registry)
+        app.include_router(router)
+        client = TestClient(app)
+
+        response = client.get("/v1/test?fields=name")
+        assert response.status_code == 200
+        items = response.json()["tests"]
+        expected_names = [entity.name for entity in manager_cls._shared_store.values()]
+        assert [item["name"] for item in items] == expected_names
+        assert all(set(item.keys()) == {"name"} for item in items)
+        assert manager_cls.last_list_params["fields"] == ["name"]
 
 
 class TestCompleteWorkflow:
