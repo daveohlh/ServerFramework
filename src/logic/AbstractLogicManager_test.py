@@ -1024,6 +1024,55 @@ class TestAbstractLogicManager:
             with pytest.raises(ValueError, match="Invalid fields for DummyDB: invalid_field"):
                 self.base_manager._resolve_load_only_columns(["invalid_field"])
 
+    def test_resolve_load_only_columns_includes_required_model_fields(self):
+        """Required Pydantic model fields should remain in load_only selections."""
+
+        class DummyModel(BaseModel):
+            name: str
+            optional: Optional[str] = None
+
+        class DummyAttr:
+            def __init__(self, key):
+                self.key = key
+
+        dummy_db = type("DummyDB", (), {})()
+        dummy_db.__name__ = "DummyDB"
+        for attr_name in [
+            "id",
+            "name",
+            "optional",
+            "created_at",
+            "created_by_user_id",
+            "updated_at",
+            "updated_by_user_id",
+        ]:
+            setattr(dummy_db, attr_name, DummyAttr(attr_name))
+        dummy_db.__mapper__ = type(
+            "DummyMapper",
+            (),
+            {
+                "attrs": {
+                    "id": None,
+                    "name": None,
+                    "optional": None,
+                    "created_at": None,
+                    "created_by_user_id": None,
+                    "updated_at": None,
+                    "updated_by_user_id": None,
+                }
+            },
+        )()
+
+        with patch.object(BaseManagerForTest, "DB", new_callable=PropertyMock) as db_prop, patch.object(
+            BaseManagerForTest, "Model", DummyModel
+        ):
+            db_prop.return_value = dummy_db
+            columns = self.base_manager._resolve_load_only_columns(["optional"])
+
+        keys = {getattr(column, "key", None) for column in columns}
+        assert "name" in keys  # required field from model
+        assert {"id", "created_at", "created_by_user_id", "updated_at", "updated_by_user_id"}.issubset(keys)
+
     def test_batch_update_operation(self):
         """Test batch updating entities."""
         # First create entities to update

@@ -1761,6 +1761,24 @@ class AbstractBLLManager(ABC):
                 resolved.append(getattr(self.DB, required_name))
                 seen.add(required_name)
 
+        # Ensure required fields from the Pydantic model remain available
+        model_required_fields: Set[str] = set()
+        model_class = getattr(self, "Model", None)
+        model_fields = getattr(model_class, "model_fields", {}) if model_class else {}
+        for field_name, field_info in model_fields.items():
+            if hasattr(field_info, "is_required") and callable(field_info.is_required):
+                if field_info.is_required():
+                    model_required_fields.add(field_name)
+
+        for required_name in model_required_fields:
+            if (
+                required_name in mapper_keys
+                and hasattr(self.DB, required_name)
+                and required_name not in seen
+            ):
+                resolved.append(getattr(self.DB, required_name))
+                seen.add(required_name)
+
         if invalid:
             raise ValueError(
                 f"Invalid fields for {self.DB.__name__}: {', '.join(invalid)}"
