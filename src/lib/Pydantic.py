@@ -562,6 +562,13 @@ class PydanticUtility:
                         )
                         continue
 
+                    # Skip abstract base classes
+                    if inspect.isabstract(cls):
+                        logger.debug(
+                            f"Skipping abstract base class {name} in relationship discovery"
+                        )
+                        continue
+
                     model_classes.append((name, cls))
                     processed_models.add(cls)
 
