@@ -15,18 +15,16 @@ from typing import Dict, List, Optional, Tuple, Type
 
 import httpx
 
+import semver
+import stringcase
+from pydantic import BaseModel, Field
+
 from lib.Logging import logger
 
 try:
     from importlib.metadata import PackageNotFoundError, version
 except ImportError:
     from importlib_metadata import version, PackageNotFoundError
-
-import semver
-import stringcase
-from pydantic import BaseModel, Field
-
-from lib.Logging import logger
 
 # Import for better OS detection
 try:
@@ -1956,7 +1954,7 @@ class Dependencies(List[Dependency]):
                 requirements[package_name] = version_spec
             else:
                 # Try simpler parsing for edge cases
-                parts = re.split(r"[<>=!~\s]", line, 1)
+                parts = re.split(r"[<>=!~\s]", line, maxsplit=1)
                 if parts:
                     package_name = stringcase.spinalcase(parts[0].strip())
                     if package_name:
