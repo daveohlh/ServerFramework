@@ -1814,7 +1814,9 @@ class ModelRegistry(AbstractRegistry):
         # First, discover extension models from BLL and PRV files
         if self.extension_registry:
             extension_names = [ext.name for ext in self.extension_registry.extensions]
-            logger.debug(f"Discovering extension models for extensions: {extension_names}")
+            logger.debug(
+                f"Discovering extension models for extensions: {extension_names}"
+            )
             self.extension_registry.discover_extension_models(extension_names)
             logger.debug(
                 f"Discovered extension models: {list(self.extension_registry.extension_models.keys())}"

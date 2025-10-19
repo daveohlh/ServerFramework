@@ -494,7 +494,7 @@ class GraphQLManager(ErrorHandlerMixin):
             annotations: Dict[str, Type] = {}
             # Track field name mappings for resolvers (camelCase -> snake_case)
             field_name_mappings: Dict[str, str] = {}
-            
+
             for field_name, field_info in model_class.model_fields.items():
                 field_type = field_info.annotation
 
@@ -613,10 +613,13 @@ class GraphQLManager(ErrorHandlerMixin):
                     def resolver(root) -> Any:
                         # root is the Pydantic model instance
                         return getattr(root, py_field_name, None)
+
                     return resolver
-                
+
                 # Use strawberry.field with a resolver to map GraphQL field name to Python attribute
-                fields_dict[gql_field_name] = strawberry.field(resolver=make_resolver(pydantic_field_name))
+                fields_dict[gql_field_name] = strawberry.field(
+                    resolver=make_resolver(pydantic_field_name)
+                )
 
             # Add navigation resolver methods for reverse relationships
             if model_class in self._reverse_relationships:
@@ -701,7 +704,7 @@ class GraphQLManager(ErrorHandlerMixin):
             # This is a common pattern in GraphQL where mutations are more permissive
             if not self._is_already_optional(field_type):
                 field_type = Optional[field_type]
-            
+
             # Convert snake_case field names to camelCase for GraphQL input types
             gql_field_name = convert_field_name(field_name, use_camelcase=True)
 
@@ -1353,14 +1356,14 @@ class GraphQLManager(ErrorHandlerMixin):
                     data[k] = v
         else:
             return {}
-        
+
         # Convert camelCase keys to snake_case for Python/Pydantic compatibility
         result: Dict[str, Any] = {}
         for key, value in data.items():
             # Convert camelCase to snake_case
             snake_key = stringcase.snakecase(key)
             result[snake_key] = value
-        
+
         return result
 
     def _get_create_input_type(self, model_class: Type[BaseModel]) -> Type:
