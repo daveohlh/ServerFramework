@@ -6,6 +6,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import (
     TYPE_CHECKING,
+    Annotated,
     Any,
     Callable,
     ClassVar,
@@ -13,6 +14,7 @@ from typing import (
     List,
     Optional,
     Set,
+    Tuple,
     Type,
     TypeVar,
     Union,
@@ -38,6 +40,7 @@ from fastapi import (
 from fastapi.encoders import jsonable_encoder
 from fastapi.params import Depends as DependsParam
 from fastapi.security import HTTPBasic
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError, create_model
 
 # Sentinel import for Pydantic's undefined values
@@ -139,6 +142,183 @@ async def get_request_info(request: Request) -> Dict:
         "scheme": request.url.scheme,
         "is_secure": request.url.is_secure,
     }
+
+
+def _normalize_query_key(key: str) -> str:
+    """Normalize query parameter key names by handling list-style suffixes."""
+    return key[:-2] if key.endswith("[]") else key
+
+
+def _type_accepts_list(annotation: Any) -> bool:
+    """Check if a type annotation accepts list-like values."""
+    if annotation is None:
+        return False
+
+    origin = get_origin(annotation)
+    if origin in {list, List, set, Set, tuple, Tuple}:
+        return True
+    if origin is Union:
+        return any(
+            _type_accepts_list(arg) for arg in get_args(annotation) if arg is not type(None)
+        )
+    if origin is Annotated:
+        args = get_args(annotation)
+        return bool(args) and _type_accepts_list(args[0])
+    return False
+
+
+def _type_accepts_str(annotation: Any) -> bool:
+    """Check if a type annotation accepts string values."""
+    if annotation is None:
+        return False
+
+    if annotation is str:
+        return True
+
+    origin = get_origin(annotation)
+    if origin is Union:
+        return any(
+            _type_accepts_str(arg) for arg in get_args(annotation) if arg is not type(None)
+        )
+    if origin is Annotated:
+        args = get_args(annotation)
+        return bool(args) and _type_accepts_str(args[0])
+    return False
+
+
+def _coerce_sequence_values(raw_values: List[str]) -> List[str]:
+    """Expand CSV strings and preserve ordering for list-compatible parameters."""
+    coerced: List[str] = []
+    for raw_value in raw_values:
+        if isinstance(raw_value, str) and "," in raw_value:
+            segments = [segment.strip() for segment in raw_value.split(",") if segment.strip()]
+            if segments:
+                coerced.extend(segments)
+            else:
+                coerced.append(raw_value)
+        else:
+            coerced.append(raw_value)
+    return coerced
+
+
+def _normalize_projection_values(value: Optional[Union[List[str], str]]) -> List[str]:
+    """Normalize projection parameters (fields/includes) into a clean list of strings."""
+    if not value:
+        return []
+
+    if isinstance(value, str):
+        return [segment.strip() for segment in value.split(",") if segment.strip()]
+
+    if isinstance(value, (list, tuple, set, frozenset)):
+        normalized: List[str] = []
+        for item in value:
+            if item is None:
+                continue
+            item_str = str(item).strip()
+            if item_str:
+                normalized.append(item_str)
+        return normalized
+
+    return []
+
+
+def _extract_projection_roots(values: List[str]) -> Set[str]:
+    """Get root keys from dotted projection paths."""
+    roots: Set[str] = set()
+    for value in values:
+        if not value:
+            continue
+        roots.add(value.split(".", 1)[0])
+    return roots
+
+
+def _apply_field_projection_to_entity(
+    entity: Any, fields: List[str], includes: List[str]
+) -> Any:
+    """Apply field projection to a serialized entity while preserving included relations."""
+    if not fields or entity is None:
+        return entity
+
+    if not isinstance(entity, dict):
+        return entity
+
+    allowed_keys = _extract_projection_roots(fields)
+    allowed_keys.update(_extract_projection_roots(includes))
+
+    if not allowed_keys:
+        return entity
+
+    return {key: value for key, value in entity.items() if key in allowed_keys}
+
+
+def create_query_model_dependency(model_cls: Type[BaseModel]) -> Callable[[Request], BaseModel]:
+    """
+    Build a FastAPI dependency that populates a Pydantic model from query parameters.
+
+    Args:
+        model_cls: Pydantic model class representing the query parameters.
+
+    Returns:
+        Dependency callable that instantiates the model from the request query string.
+    """
+
+    model_fields = getattr(model_cls, "model_fields", {})
+    alias_map: Dict[str, str] = {}
+
+    for field_name, field_info in model_fields.items():
+        alias_map[field_name] = field_name
+        alias = getattr(field_info, "alias", None)
+        if not alias:
+            continue
+        if isinstance(alias, str):
+            alias_map[alias] = field_name
+        elif isinstance(alias, (list, tuple, set, frozenset)):
+            for alias_option in alias:
+                if isinstance(alias_option, str):
+                    alias_map[alias_option] = field_name
+
+    accepts_list_cache = {
+        field_name: _type_accepts_list(field_info.annotation)
+        for field_name, field_info in model_fields.items()
+    }
+    accepts_str_cache = {
+        field_name: _type_accepts_str(field_info.annotation)
+        for field_name, field_info in model_fields.items()
+    }
+
+    async def dependency(request: Request) -> BaseModel:
+        if not request.query_params:
+            return model_cls()
+
+        raw_values: Dict[str, List[str]] = {}
+        for raw_key, raw_value in request.query_params.multi_items():
+            normalized_key = _normalize_query_key(raw_key)
+            field_name = alias_map.get(normalized_key, normalized_key)
+            raw_values.setdefault(field_name, []).append(raw_value)
+
+        parsed: Dict[str, Any] = {}
+        for field_name, values in raw_values.items():
+            field_info = model_fields.get(field_name)
+            if not field_info:
+                parsed[field_name] = values[-1]
+                continue
+
+            allows_list = accepts_list_cache.get(field_name, False)
+            allows_str = accepts_str_cache.get(field_name, False)
+            requires_list = allows_list and not allows_str
+
+            if allows_list and (
+                requires_list
+                or len(values) > 1
+                or any("," in value for value in values)
+            ):
+                parsed[field_name] = _coerce_sequence_values(values)
+            else:
+                parsed[field_name] = values[-1]
+
+        return model_cls(**parsed)
+
+    return dependency
 
 
 class ExampleGenerator:
@@ -1323,6 +1503,8 @@ def register_route(
                 "content": {"application/json": {"example": examples["get"]}}
             }
 
+        get_query_dependency = create_query_model_dependency(network_model.GET)
+
         @router.get(
             path,
             summary=summary,
@@ -1336,8 +1518,7 @@ def register_route(
             id: str = Path(
                 ..., description=f"{stringcase.titlecase(resource_name)} ID"
             ),
-            query_params: network_model.GET = Depends(),
-            # TODO This ^ Depends() is not correctly retrieving the query parameters from the request query string.
+            query_params: network_model.GET = Depends(get_query_dependency),
             manager=Depends(manager_factory),
         ):
             try:
@@ -1355,7 +1536,28 @@ def register_route(
                         detail=f"{stringcase.titlecase(resource_name)} with ID '{id}' not found",
                     )
 
-                return network_model.ResponseSingle(**{resource_name: result})
+                response_model_instance = network_model.ResponseSingle(
+                    **{resource_name: result}
+                )
+
+                fields_selection = _normalize_projection_values(query_params.fields)
+                include_selection = _normalize_projection_values(
+                    query_params.include
+                )
+
+                if fields_selection:
+                    serialized_entity = serialize_for_response(
+                        getattr(response_model_instance, resource_name)
+                    )
+                    projected_entity = _apply_field_projection_to_entity(
+                        serialized_entity, fields_selection, include_selection
+                    )
+                    return JSONResponse(
+                        content=jsonable_encoder({resource_name: projected_entity}),
+                        status_code=status.HTTP_200_OK,
+                    )
+
+                return response_model_instance
             except Exception as err:
                 handle_resource_operation_error(err)
 
@@ -1372,6 +1574,8 @@ def register_route(
                 "content": {"application/json": {"example": examples["list"]}}
             }
 
+        list_query_dependency = create_query_model_dependency(network_model.LIST)
+
         @router.get(
             path,
             summary=summary,
@@ -1382,7 +1586,7 @@ def register_route(
         )
         async def list_resources(
             request: Dict = Depends(get_request_info),
-            query_params: network_model.LIST = Depends(),
+            query_params: network_model.LIST = Depends(list_query_dependency),
             manager=Depends(manager_factory),
         ):
             try:
@@ -1401,7 +1605,33 @@ def register_route(
                     **search_params,
                 )
 
-                return network_model.ResponsePlural(**{resource_name_plural: results})
+                response_model_instance = network_model.ResponsePlural(
+                    **{resource_name_plural: results}
+                )
+
+                fields_selection = _normalize_projection_values(query_params.fields)
+                include_selection = _normalize_projection_values(
+                    query_params.include
+                )
+
+                if fields_selection:
+                    serialized_items = serialize_for_response(
+                        getattr(response_model_instance, resource_name_plural)
+                    )
+                    projected_items = [
+                        _apply_field_projection_to_entity(
+                            item, fields_selection, include_selection
+                        )
+                        for item in serialized_items or []
+                    ]
+                    return JSONResponse(
+                        content=jsonable_encoder(
+                            {resource_name_plural: projected_items}
+                        ),
+                        status_code=status.HTTP_200_OK,
+                    )
+
+                return response_model_instance
             except Exception as err:
                 handle_resource_operation_error(err)
 
@@ -1682,23 +1912,43 @@ def register_route(
                 if not actual_sort_order:
                     actual_sort_order = "asc"
 
-                return network_model.ResponsePlural(
-                    **{
-                        resource_name_plural: get_manager(
-                            manager, manager_property
-                        ).search(
-                            include=actual_include,
-                            fields=actual_fields,
-                            offset=actual_offset,
-                            limit=actual_limit,
-                            sort_by=actual_sort_by,
-                            sort_order=actual_sort_order,
-                            page=actual_page,
-                            pageSize=actual_page_size,
-                            **search_data,
-                        )
-                    }
+                search_results = get_manager(manager, manager_property).search(
+                    include=actual_include,
+                    fields=actual_fields,
+                    offset=actual_offset,
+                    limit=actual_limit,
+                    sort_by=actual_sort_by,
+                    sort_order=actual_sort_order,
+                    page=actual_page,
+                    pageSize=actual_page_size,
+                    **search_data,
                 )
+
+                response_model_instance = network_model.ResponsePlural(
+                    **{resource_name_plural: search_results}
+                )
+
+                fields_selection = _normalize_projection_values(actual_fields)
+                include_selection = _normalize_projection_values(actual_include)
+
+                if fields_selection:
+                    serialized_items = serialize_for_response(
+                        getattr(response_model_instance, resource_name_plural)
+                    )
+                    projected_items = [
+                        _apply_field_projection_to_entity(
+                            item, fields_selection, include_selection
+                        )
+                        for item in serialized_items or []
+                    ]
+                    return JSONResponse(
+                        content=jsonable_encoder(
+                            {resource_name_plural: projected_items}
+                        ),
+                        status_code=status.HTTP_200_OK,
+                    )
+
+                return response_model_instance
             except Exception as err:
                 handle_resource_operation_error(err)
 

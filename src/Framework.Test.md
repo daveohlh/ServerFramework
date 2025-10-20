@@ -66,6 +66,7 @@ The testing framework mirrors the main architecture with specialized abstract ba
 - **Authentication Flows**: JWT and API key authentication testing
 - **Request/Response Validation**: Schema validation for all endpoint interactions
 - **Error Handling**: HTTP status code and error message validation
+- **Field Projection Testing**: Field selection coverage automatically skips relationship navigation fields to keep assertions focused on scalar payloads
 - **Nested Resource Testing**: Hierarchical resource relationship testing
 - **Pagination Testing**: Large dataset pagination and filtering validation
 
