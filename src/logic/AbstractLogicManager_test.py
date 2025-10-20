@@ -1000,12 +1000,21 @@ class TestAbstractLogicManager:
             },
         )()
 
-        with patch.object(BaseManagerForTest, "DB", new_callable=PropertyMock) as db_prop:
+        with patch.object(
+            BaseManagerForTest, "DB", new_callable=PropertyMock
+        ) as db_prop:
             db_prop.return_value = dummy_db
             columns = self.base_manager._resolve_load_only_columns(["name"])
 
         keys = {getattr(column, "key", None) for column in columns}
-        assert {"name", "id", "created_at", "created_by_user_id", "updated_at", "updated_by_user_id"} <= keys
+        assert {
+            "name",
+            "id",
+            "created_at",
+            "created_by_user_id",
+            "updated_at",
+            "updated_by_user_id",
+        } <= keys
 
     def test_resolve_load_only_columns_invalid_field(self):
         """Invalid fields should raise a ValueError with clear messaging."""
@@ -1019,9 +1028,13 @@ class TestAbstractLogicManager:
         dummy_db.id = DummyAttr("id")
         dummy_db.__mapper__ = type("DummyMapper", (), {"attrs": {"id": None}})()
 
-        with patch.object(BaseManagerForTest, "DB", new_callable=PropertyMock) as db_prop:
+        with patch.object(
+            BaseManagerForTest, "DB", new_callable=PropertyMock
+        ) as db_prop:
             db_prop.return_value = dummy_db
-            with pytest.raises(ValueError, match="Invalid fields for DummyDB: invalid_field"):
+            with pytest.raises(
+                ValueError, match="Invalid fields for DummyDB: invalid_field"
+            ):
                 self.base_manager._resolve_load_only_columns(["invalid_field"])
 
     def test_resolve_load_only_columns_includes_required_model_fields(self):
@@ -1063,15 +1076,21 @@ class TestAbstractLogicManager:
             },
         )()
 
-        with patch.object(BaseManagerForTest, "DB", new_callable=PropertyMock) as db_prop, patch.object(
-            BaseManagerForTest, "Model", DummyModel
-        ):
+        with patch.object(
+            BaseManagerForTest, "DB", new_callable=PropertyMock
+        ) as db_prop, patch.object(BaseManagerForTest, "Model", DummyModel):
             db_prop.return_value = dummy_db
             columns = self.base_manager._resolve_load_only_columns(["optional"])
 
         keys = {getattr(column, "key", None) for column in columns}
         assert "name" in keys  # required field from model
-        assert {"id", "created_at", "created_by_user_id", "updated_at", "updated_by_user_id"}.issubset(keys)
+        assert {
+            "id",
+            "created_at",
+            "created_by_user_id",
+            "updated_at",
+            "updated_by_user_id",
+        }.issubset(keys)
 
     def test_batch_update_operation(self):
         """Test batch updating entities."""

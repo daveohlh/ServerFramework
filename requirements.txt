@@ -15,6 +15,7 @@ SQLAlchemy
 
 # Asynchronous Operations
 broadcaster
+greenlet
 
 # GraphQL
 strawberry-graphql[fastapi]

@@ -51,11 +51,7 @@ from logic.BLL_Auth import (
 logger.debug(f"Added to sys.path: {src_path}, {project_root}")
 
 MODEL_BASE_CLASSES: Tuple[type, ...] = tuple(
-    {
-        base
-        for base in (FrameworkBaseModel, PydanticBaseModel)
-        if base is not None
-    }
+    {base for base in (FrameworkBaseModel, PydanticBaseModel) if base is not None}
 )
 
 

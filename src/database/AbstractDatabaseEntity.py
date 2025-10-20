@@ -1012,13 +1012,6 @@ class BaseMixin:
 
         validate_columns(cls, **kwargs)
 
-        # Validate fields parameter
-        if fields and return_type != "dict":
-            raise HTTPException(
-                status_code=400,
-                detail="Fields parameter can only be used with return_type='dict'",
-            )
-
         # Validate that fields exist on the model
         validate_fields(cls, fields)
 
