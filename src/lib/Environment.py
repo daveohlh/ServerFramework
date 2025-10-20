@@ -191,15 +191,18 @@ def register_extension_env_vars(env: Optional[Dict[str, Any]]) -> None:
         logger.error(f"Error updating global settings: {e}")
 
 
-def env(var: str) -> str:
+def env(var: str, default: Optional[str] = "") -> str:
     """
-    Get environment variable with fallback to default values.
-    For backward compatibility with existing code.
+    Get environment variable with fallback to a provided default value.
+
+    Backwards-compatible: callers that only provide the variable name will get
+    the old behavior (empty string when not present). Callers may provide a
+    second argument to specify a default to return when the variable is not set.
     """
     if hasattr(settings, var):
         value = getattr(settings, var)
-        return str(value) if value is not None else ""
-    return os.getenv(var, "")
+        return str(value) if value is not None else (default or "")
+    return os.getenv(var, default or "")
 
 
 def extract_base_domain(uri: str) -> str:
