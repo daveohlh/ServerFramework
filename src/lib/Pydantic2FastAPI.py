@@ -159,7 +159,9 @@ def _type_accepts_list(annotation: Any) -> bool:
         return True
     if origin is Union:
         return any(
-            _type_accepts_list(arg) for arg in get_args(annotation) if arg is not type(None)
+            _type_accepts_list(arg)
+            for arg in get_args(annotation)
+            if arg is not type(None)
         )
     if origin is Annotated:
         args = get_args(annotation)
@@ -178,7 +180,9 @@ def _type_accepts_str(annotation: Any) -> bool:
     origin = get_origin(annotation)
     if origin is Union:
         return any(
-            _type_accepts_str(arg) for arg in get_args(annotation) if arg is not type(None)
+            _type_accepts_str(arg)
+            for arg in get_args(annotation)
+            if arg is not type(None)
         )
     if origin is Annotated:
         args = get_args(annotation)
@@ -191,7 +195,9 @@ def _coerce_sequence_values(raw_values: List[str]) -> List[str]:
     coerced: List[str] = []
     for raw_value in raw_values:
         if isinstance(raw_value, str) and "," in raw_value:
-            segments = [segment.strip() for segment in raw_value.split(",") if segment.strip()]
+            segments = [
+                segment.strip() for segment in raw_value.split(",") if segment.strip()
+            ]
             if segments:
                 coerced.extend(segments)
             else:
@@ -251,7 +257,9 @@ def _apply_field_projection_to_entity(
     return {key: value for key, value in entity.items() if key in allowed_keys}
 
 
-def create_query_model_dependency(model_cls: Type[BaseModel]) -> Callable[[Request], BaseModel]:
+def create_query_model_dependency(
+    model_cls: Type[BaseModel],
+) -> Callable[[Request], BaseModel]:
     """
     Build a FastAPI dependency that populates a Pydantic model from query parameters.
 
@@ -304,14 +312,8 @@ def create_query_model_dependency(model_cls: Type[BaseModel]) -> Callable[[Reque
                 continue
 
             allows_list = accepts_list_cache.get(field_name, False)
-            allows_str = accepts_str_cache.get(field_name, False)
-            requires_list = allows_list and not allows_str
-
-            if allows_list and (
-                requires_list
-                or len(values) > 1
-                or any("," in value for value in values)
-            ):
+            # For list-compatibility, always normalize to list form
+            if allows_list:
                 parsed[field_name] = _coerce_sequence_values(values)
             else:
                 parsed[field_name] = values[-1]
@@ -1541,9 +1543,7 @@ def register_route(
                 )
 
                 fields_selection = _normalize_projection_values(query_params.fields)
-                include_selection = _normalize_projection_values(
-                    query_params.include
-                )
+                include_selection = _normalize_projection_values(query_params.include)
 
                 if fields_selection:
                     serialized_entity = serialize_for_response(
@@ -1610,14 +1610,18 @@ def register_route(
                 )
 
                 fields_selection = _normalize_projection_values(query_params.fields)
-                include_selection = _normalize_projection_values(
-                    query_params.include
-                )
+                include_selection = _normalize_projection_values(query_params.include)
 
                 if fields_selection:
                     serialized_items = serialize_for_response(
                         getattr(response_model_instance, resource_name_plural)
                     )
+                    try:
+                        logger.debug(
+                            f"LIST projection: fields={fields_selection}, include={include_selection}, sample_keys={(list(serialized_items[0].keys()) if isinstance(serialized_items, list) and serialized_items else [])}"
+                        )
+                    except Exception:
+                        pass
                     projected_items = [
                         _apply_field_projection_to_entity(
                             item, fields_selection, include_selection

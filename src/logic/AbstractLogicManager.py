@@ -1721,7 +1721,7 @@ class AbstractBLLManager(ABC):
                 validated_fields.append(field_name)
 
         return validated_fields
-    
+
     def _resolve_load_only_columns(self, fields_list: List[str]) -> List[Any]:
         """Resolve field names to SQLAlchemy load_only compatible attributes."""
         mapper = getattr(self.DB, "__mapper__", None)
@@ -1729,7 +1729,9 @@ class AbstractBLLManager(ABC):
             return []
 
         mapper_attrs = getattr(mapper, "attrs", {})
-        mapper_keys = set(mapper_attrs.keys()) if hasattr(mapper_attrs, "keys") else set()
+        mapper_keys = (
+            set(mapper_attrs.keys()) if hasattr(mapper_attrs, "keys") else set()
+        )
 
         resolved: List[Any] = []
         invalid: List[str] = []

@@ -2539,10 +2539,9 @@ class TeamManager(AbstractBLLManager, RouterMixin):
             options = self.generate_joins(self.DB, include)
         team = self.DB.get(
             requester_id=self.requester.id,
-            fields=fields,
             model_registry=self.model_registry,
-            return_type="dto" if not fields else "dict",
-            override_dto=self.Model if not fields else None,
+            return_type="dto",
+            override_dto=self.Model,
             options=options,
             **kwargs,
         )
