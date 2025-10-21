@@ -569,7 +569,7 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
 
     @staticmethod
     def _serialize_query_values(
-        values: Optional[Union[str, List[str], Tuple[str, ...], Set[str]]]
+        values: Optional[Union[str, List[str], Tuple[str, ...], Set[str]]],
     ) -> str:
         """Return a comma-separated string for query parameters."""
         if not values:
