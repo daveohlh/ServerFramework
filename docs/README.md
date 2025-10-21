@@ -1,4 +1,4 @@
-# Server Framework Documentation
+# JamesonRGrieve's Server Framework
 
 ![Generation Paths](./Generation.png)
 
