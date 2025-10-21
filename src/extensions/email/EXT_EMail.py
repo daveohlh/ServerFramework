@@ -350,10 +350,13 @@ class EXT_EMail(AbstractStaticExtension):
         """Validate extension configuration and return list of issues."""
         issues = []
 
-        if not env("SENDGRID_API_KEY"):
+        # Import env at call time so tests that patch lib.Environment.env are respected
+        from lib.Environment import env as _env
+
+        if not _env("SENDGRID_API_KEY"):
             issues.append("SENDGRID_API_KEY environment variable not set")
 
-        if not env("SENDGRID_FROM_EMAIL"):
+        if not _env("SENDGRID_FROM_EMAIL"):
             issues.append("SENDGRID_FROM_EMAIL environment variable not set")
 
         return issues
@@ -377,12 +380,15 @@ class EXT_EMail(AbstractStaticExtension):
         Get the current status of the email extension.
         This is a meta ability that works regardless of provider.
         """
+        # Import env at call time so tests that patch lib.Environment.env are respected
+        from lib.Environment import env as _env
+
         return {
             "extension": cls.name,
             "version": cls.version,
             "providers_available": len(cls.providers),
-            "configured": bool(env("SENDGRID_API_KEY")),
-            "default_provider": env("EMAIL_PROVIDER") or "sendgrid",
+            "configured": bool(_env("SENDGRID_API_KEY")),
+            "default_provider": _env("EMAIL_PROVIDER") or "sendgrid",
         }
 
     @classmethod
@@ -392,13 +398,16 @@ class EXT_EMail(AbstractStaticExtension):
         Get the current email configuration.
         This is a meta ability that works regardless of provider.
         """
+        # Import env at call time so tests that patch lib.Environment.env are respected
+        from lib.Environment import env as _env
+
         return {
-            "email_provider": env("EMAIL_PROVIDER") or "sendgrid",
-            "smtp_server": env("SMTP_SERVER"),
-            "smtp_port": env("SMTP_PORT") or "587",
-            "imap_server": env("IMAP_SERVER"),
-            "imap_port": env("IMAP_PORT") or "993",
-            "from_email_configured": bool(env("SENDGRID_FROM_EMAIL")),
+            "email_provider": _env("EMAIL_PROVIDER") or "sendgrid",
+            "smtp_server": _env("SMTP_SERVER"),
+            "smtp_port": _env("SMTP_PORT") or "587",
+            "imap_server": _env("IMAP_SERVER"),
+            "imap_port": _env("IMAP_PORT") or "993",
+            "from_email_configured": bool(_env("SENDGRID_FROM_EMAIL")),
         }
 
     @classmethod
@@ -407,19 +416,25 @@ class EXT_EMail(AbstractStaticExtension):
         Validate that the email extension is properly configured.
         """
         # Check for required environment variables
-        email_provider = env("EMAIL_PROVIDER") or "sendgrid"
+        # Import env at call time so tests that patch lib.Environment.env are respected
+        from lib.Environment import env as _env
+
+        email_provider = _env("EMAIL_PROVIDER") or "sendgrid"
 
         if email_provider == "sendgrid":
-            return bool(env("SENDGRID_API_KEY") and env("SENDGRID_FROM_EMAIL"))
+            return bool(_env("SENDGRID_API_KEY") and _env("SENDGRID_FROM_EMAIL"))
         elif email_provider in ["smtp", "imap"]:
-            return bool(env("SMTP_SERVER") or env("IMAP_SERVER"))
+            return bool(_env("SMTP_SERVER") or _env("IMAP_SERVER"))
 
         return False
 
     @classmethod
     def get_default_provider_name(cls) -> str:
         """Get the default email provider name from configuration."""
-        return env("EMAIL_PROVIDER") or "sendgrid"
+        # Import env at call time so tests that patch lib.Environment.env are respected
+        from lib.Environment import env as _env
+
+        return _env("EMAIL_PROVIDER") or "sendgrid"
 
     @classmethod
     def get_provider_names(cls) -> List[str]:
