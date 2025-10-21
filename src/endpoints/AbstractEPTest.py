@@ -7,6 +7,7 @@ from enum import Enum
 from itertools import combinations
 from types import UnionType
 from typing import (
+    Annotated,
     Any,
     Dict,
     List,
@@ -374,16 +375,59 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
                 )
 
         if include_cases:
-            first_prop = include_cases[0].expected_keys[0]
-            include_cases.append(
-                IncludeTestCase(
-                    query=include_cases[0].query,
-                    expected_keys=(first_prop,),
-                    combine_with_fields=True,
-                )
+            projection_candidate = next(
+                (
+                    prop
+                    for prop in seen
+                    if self._include_supports_field_projection(prop)
+                ),
+                None,
             )
+            if projection_candidate:
+                include_cases.append(
+                    IncludeTestCase(
+                        query=projection_candidate,
+                        expected_keys=(projection_candidate,),
+                        combine_with_fields=True,
+                    )
+                )
 
         return list(dict.fromkeys(include_cases))
+
+    @staticmethod
+    def _annotation_contains_any(annotation: Any) -> bool:
+        """Return True when the provided annotation resolves to typing.Any."""
+        if annotation is Any:
+            return True
+        origin = get_origin(annotation)
+        if origin is Annotated:
+            return any(
+                AbstractEndpointTest._annotation_contains_any(arg)
+                for arg in get_args(annotation)
+            )
+        if origin is Union:
+            return any(
+                AbstractEndpointTest._annotation_contains_any(arg)
+                for arg in get_args(annotation)
+            )
+        return False
+
+    def _include_supports_field_projection(self, include_name: str) -> bool:
+        """Determine whether an include target can combine with field projections."""
+        if not self.class_under_test or not hasattr(
+            self.class_under_test, "model_fields"
+        ):
+            return False
+
+        field_info = self.class_under_test.model_fields.get(include_name)
+        if not field_info:
+            return False
+
+        annotation = getattr(field_info, "annotation", None)
+        if annotation is None:
+            return False
+
+        return not self._annotation_contains_any(annotation)
 
     def _discover_model_relationships(self) -> List[str]:
         """Discover relationship property names from BLL model definitions."""
@@ -566,6 +610,20 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
             if field not in excluded:
                 return field
         return None
+
+    @staticmethod
+    def _serialize_query_values(
+        values: Optional[Union[str, List[str], Tuple[str, ...], Set[str]]],
+    ) -> str:
+        """Return a comma-separated string for query parameters."""
+        if not values:
+            return ""
+        if isinstance(values, str):
+            return values.strip()
+        if isinstance(values, (list, tuple, set)):
+            parts = [str(value).strip() for value in values if str(value).strip()]
+            return ",".join(parts)
+        return ""
 
     def _create_assert(self, tracked_index: str):
         """Assert that an entity was created successfully."""
@@ -1029,8 +1087,8 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
         api_key: Optional[str] = None,
         save_key="get_result",
         get_key="get",
-        fields: Optional[str] = None,
-        includes: Optional[str] = None,
+        fields: Optional[Union[str, List[str], Tuple[str, ...], Set[str]]] = None,
+        includes: Optional[Union[str, List[str], Tuple[str, ...], Set[str]]] = None,
     ):
         """Get a test entity."""
         if jwt_token is None and api_key is None:
@@ -1060,10 +1118,14 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
 
         # Build query parameters
         query_params = []
-        if fields:
-            query_params.append(f"fields={','.join(fields)}")
-        if includes:
-            query_params.append(f"includes={','.join(includes)}")
+
+        fields_param = self._serialize_query_values(fields)
+        if fields_param:
+            query_params.append(f"fields={fields_param}")
+
+        include_param = self._serialize_query_values(includes)
+        if include_param:
+            query_params.append(f"include={include_param}")
 
         query_string = f"?{'&'.join(query_params)}" if query_params else ""
 
@@ -1167,7 +1229,7 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
             team_a.id,
             save_key=result_key,
             get_key=create_key,
-            fields=fields_param,
+            fields=[fields_param] if fields_param else None,
             includes=include_case.query,
         )
 
@@ -1202,7 +1264,7 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
             admin_a.id,
             team_a.id,
             save_key=f"list_field_{field_name}_result",
-            fields=f"{[field_name]}",  # Request only this specific field
+            fields=[field_name],  # Request only this specific field
         )
 
         # Verify all returned entities contain the requested field
@@ -1268,7 +1330,7 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
             team_a.id,
             save_key=f"list_includes_result_{key_suffix}",
             includes=include_case.query,
-            fields=fields_param,
+            fields=[fields_param] if fields_param else None,
         )
         if entities and len(entities) > 0:
             assert any(
@@ -1324,7 +1386,7 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
             team_a.id,
             save_key=f"search_includes_result_{key_suffix}",
             includes=include_case.query,
-            fields=fields_param,
+            fields=[fields_param] if fields_param else None,
         )
         if entities and len(entities) > 0:
             assert any(
@@ -1377,8 +1439,8 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
         offset: Optional[int] = None,
         save_key: str = "list_result",
         parent_ids_override: Optional[Dict[str, str]] = None,
-        includes: Optional[str] = None,
-        fields: Optional[str] = None,
+        includes: Optional[Union[str, List[str], Tuple[str, ...], Set[str]]] = None,
+        fields: Optional[Union[str, List[str], Tuple[str, ...], Set[str]]] = None,
     ):
         """List entities."""
         if jwt_token is None and api_key is None:
@@ -1410,10 +1472,12 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
             query_params.append(f"limit={limit}")
         if offset is not None:
             query_params.append(f"offset={offset}")
-        if includes:
-            query_params.append(f"includes={includes}")
-        if fields:
-            query_params.append(f"fields={fields}")
+        include_param = self._serialize_query_values(includes)
+        if include_param:
+            query_params.append(f"include={include_param}")
+        fields_param = self._serialize_query_values(fields)
+        if fields_param:
+            query_params.append(f"fields={fields_param}")
 
         query_string = f"?{'&'.join(query_params)}" if query_params else ""
 
@@ -3095,8 +3159,8 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
         team_id: Optional[str] = None,
         target: Any = None,
         save_key="search_result",
-        includes: Optional[str] = None,
-        fields: Optional[str] = None,
+        includes: Optional[Union[str, List[str], Tuple[str, ...], Set[str]]] = None,
+        fields: Optional[Union[str, List[str], Tuple[str, ...], Set[str]]] = None,
         page: Optional[int] = None,
         pageSize: Optional[int] = None,
         limit: Optional[int] = None,
@@ -3127,10 +3191,12 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
             payload["search"] = search_term
 
         query_params = []
-        if includes:
-            query_params.append(f"includes={includes}")
-        if fields:
-            query_params.append(f"fields={fields}")
+        include_param = self._serialize_query_values(includes)
+        if include_param:
+            query_params.append(f"include={include_param}")
+        fields_param = self._serialize_query_values(fields)
+        if fields_param:
+            query_params.append(f"fields={fields_param}")
         if page is not None:
             query_params.append(f"page={page}")
         if pageSize is not None:
