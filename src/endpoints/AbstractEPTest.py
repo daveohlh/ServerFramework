@@ -567,6 +567,20 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
                 return field
         return None
 
+    @staticmethod
+    def _serialize_query_values(
+        values: Optional[Union[str, List[str], Tuple[str, ...], Set[str]]]
+    ) -> str:
+        """Return a comma-separated string for query parameters."""
+        if not values:
+            return ""
+        if isinstance(values, str):
+            return values.strip()
+        if isinstance(values, (list, tuple, set)):
+            parts = [str(value).strip() for value in values if str(value).strip()]
+            return ",".join(parts)
+        return ""
+
     def _create_assert(self, tracked_index: str):
         """Assert that an entity was created successfully."""
         entity = self.tracked_entities[tracked_index]
@@ -1029,8 +1043,8 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
         api_key: Optional[str] = None,
         save_key="get_result",
         get_key="get",
-        fields: Optional[str] = None,
-        includes: Optional[str] = None,
+        fields: Optional[Union[str, List[str], Tuple[str, ...], Set[str]]] = None,
+        includes: Optional[Union[str, List[str], Tuple[str, ...], Set[str]]] = None,
     ):
         """Get a test entity."""
         if jwt_token is None and api_key is None:
@@ -1060,10 +1074,14 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
 
         # Build query parameters
         query_params = []
-        if fields:
-            query_params.append(f"fields={','.join(fields)}")
-        if includes:
-            query_params.append(f"includes={','.join(includes)}")
+
+        fields_param = self._serialize_query_values(fields)
+        if fields_param:
+            query_params.append(f"fields={fields_param}")
+
+        include_param = self._serialize_query_values(includes)
+        if include_param:
+            query_params.append(f"include={include_param}")
 
         query_string = f"?{'&'.join(query_params)}" if query_params else ""
 
@@ -1167,7 +1185,7 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
             team_a.id,
             save_key=result_key,
             get_key=create_key,
-            fields=fields_param,
+            fields=[fields_param] if fields_param else None,
             includes=include_case.query,
         )
 
@@ -1202,7 +1220,7 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
             admin_a.id,
             team_a.id,
             save_key=f"list_field_{field_name}_result",
-            fields=f"{[field_name]}",  # Request only this specific field
+            fields=[field_name],  # Request only this specific field
         )
 
         # Verify all returned entities contain the requested field
@@ -1268,7 +1286,7 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
             team_a.id,
             save_key=f"list_includes_result_{key_suffix}",
             includes=include_case.query,
-            fields=fields_param,
+            fields=[fields_param] if fields_param else None,
         )
         if entities and len(entities) > 0:
             assert any(
@@ -1324,7 +1342,7 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
             team_a.id,
             save_key=f"search_includes_result_{key_suffix}",
             includes=include_case.query,
-            fields=fields_param,
+            fields=[fields_param] if fields_param else None,
         )
         if entities and len(entities) > 0:
             assert any(
@@ -1377,8 +1395,8 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
         offset: Optional[int] = None,
         save_key: str = "list_result",
         parent_ids_override: Optional[Dict[str, str]] = None,
-        includes: Optional[str] = None,
-        fields: Optional[str] = None,
+        includes: Optional[Union[str, List[str], Tuple[str, ...], Set[str]]] = None,
+        fields: Optional[Union[str, List[str], Tuple[str, ...], Set[str]]] = None,
     ):
         """List entities."""
         if jwt_token is None and api_key is None:
@@ -1410,10 +1428,12 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
             query_params.append(f"limit={limit}")
         if offset is not None:
             query_params.append(f"offset={offset}")
-        if includes:
-            query_params.append(f"includes={includes}")
-        if fields:
-            query_params.append(f"fields={fields}")
+        include_param = self._serialize_query_values(includes)
+        if include_param:
+            query_params.append(f"include={include_param}")
+        fields_param = self._serialize_query_values(fields)
+        if fields_param:
+            query_params.append(f"fields={fields_param}")
 
         query_string = f"?{'&'.join(query_params)}" if query_params else ""
 
@@ -3095,8 +3115,8 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
         team_id: Optional[str] = None,
         target: Any = None,
         save_key="search_result",
-        includes: Optional[str] = None,
-        fields: Optional[str] = None,
+        includes: Optional[Union[str, List[str], Tuple[str, ...], Set[str]]] = None,
+        fields: Optional[Union[str, List[str], Tuple[str, ...], Set[str]]] = None,
         page: Optional[int] = None,
         pageSize: Optional[int] = None,
         limit: Optional[int] = None,
@@ -3127,10 +3147,12 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
             payload["search"] = search_term
 
         query_params = []
-        if includes:
-            query_params.append(f"includes={includes}")
-        if fields:
-            query_params.append(f"fields={fields}")
+        include_param = self._serialize_query_values(includes)
+        if include_param:
+            query_params.append(f"include={include_param}")
+        fields_param = self._serialize_query_values(fields)
+        if fields_param:
+            query_params.append(f"fields={fields_param}")
         if page is not None:
             query_params.append(f"page={page}")
         if pageSize is not None:
