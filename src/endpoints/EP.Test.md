@@ -161,7 +161,7 @@ NESTING_CONFIG_OVERRIDES = {
 - `test_GET_200_id()` - Single entity retrieval
 - `test_GET_200_list()` - Entity listing
 - `test_GET_200_fields()` - Field selection
-- `test_GET_200_includes()` - Related entity inclusion (single, CSV, and with field filters)
+- `test_GET_200_includes()` - Related entity inclusion via the `include` query argument (single targets, CSV lists, and safe field projection combinations)
 - `test_GET_200_pagination()` - Paginated results
 - `test_GET_401()` - Unauthorized access
 - `test_GET_404_nonexistent()` - Nonexistent entity
@@ -181,6 +181,8 @@ NESTING_CONFIG_OVERRIDES = {
 - `test_DELETE_401()` - Unauthorized
 - `test_DELETE_404_nonexistent()` - Nonexistent entity
 - `test_DELETE_404_other_user()` - Cross-user restrictions
+
+The helper layer automatically normalizes projection parameters so tests emit `include`/`fields` query strings in CSV form. Field-plus-include combinations are only generated for relationships whose Pydantic annotations resolve to concrete models, protecting scenarios where mixin-provided `Any` annotations would otherwise trigger server-side conversion errors.
 
 ### Search and Filtering
 

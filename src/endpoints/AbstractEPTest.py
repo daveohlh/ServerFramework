@@ -7,6 +7,7 @@ from enum import Enum
 from itertools import combinations
 from types import UnionType
 from typing import (
+    Annotated,
     Any,
     Dict,
     List,
@@ -374,16 +375,59 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
                 )
 
         if include_cases:
-            first_prop = include_cases[0].expected_keys[0]
-            include_cases.append(
-                IncludeTestCase(
-                    query=include_cases[0].query,
-                    expected_keys=(first_prop,),
-                    combine_with_fields=True,
-                )
+            projection_candidate = next(
+                (
+                    prop
+                    for prop in seen
+                    if self._include_supports_field_projection(prop)
+                ),
+                None,
             )
+            if projection_candidate:
+                include_cases.append(
+                    IncludeTestCase(
+                        query=projection_candidate,
+                        expected_keys=(projection_candidate,),
+                        combine_with_fields=True,
+                    )
+                )
 
         return list(dict.fromkeys(include_cases))
+
+    @staticmethod
+    def _annotation_contains_any(annotation: Any) -> bool:
+        """Return True when the provided annotation resolves to typing.Any."""
+        if annotation is Any:
+            return True
+        origin = get_origin(annotation)
+        if origin is Annotated:
+            return any(
+                AbstractEndpointTest._annotation_contains_any(arg)
+                for arg in get_args(annotation)
+            )
+        if origin is Union:
+            return any(
+                AbstractEndpointTest._annotation_contains_any(arg)
+                for arg in get_args(annotation)
+            )
+        return False
+
+    def _include_supports_field_projection(self, include_name: str) -> bool:
+        """Determine whether an include target can combine with field projections."""
+        if not self.class_under_test or not hasattr(
+            self.class_under_test, "model_fields"
+        ):
+            return False
+
+        field_info = self.class_under_test.model_fields.get(include_name)
+        if not field_info:
+            return False
+
+        annotation = getattr(field_info, "annotation", None)
+        if annotation is None:
+            return False
+
+        return not self._annotation_contains_any(annotation)
 
     def _discover_model_relationships(self) -> List[str]:
         """Discover relationship property names from BLL model definitions."""
