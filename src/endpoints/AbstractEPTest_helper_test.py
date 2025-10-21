@@ -54,8 +54,7 @@ def test_encode_query_values_with_lists():
 def test_encode_query_values_trims_and_deduplicates():
     assert AbstractEndpointTest._encode_query_values("id,name") == "id,name"
     assert (
-        AbstractEndpointTest._encode_query_values([" id ", "name", "id"])
-        == "id,name"
+        AbstractEndpointTest._encode_query_values([" id ", "name", "id"]) == "id,name"
     )
     assert (
         AbstractEndpointTest._encode_query_values(("team.members", "team.members"))
