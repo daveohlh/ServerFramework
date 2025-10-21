@@ -1061,9 +1061,9 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
         # Build query parameters
         query_params = []
         if fields:
-            query_params.append(f"fields={",".join(fields)}")
+            query_params.append(f"fields={','.join(fields)}")
         if includes:
-            query_params.append(f"includes={",".join(includes)}")
+            query_params.append(f"includes={','.join(includes)}")
 
         query_string = f"?{'&'.join(query_params)}" if query_params else ""
 
