@@ -1195,8 +1195,8 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
         if other_fields:
             for field in other_fields:
                 assert (
-                    field not in entity
-                ), f"Response should not contain field '{field}'"
+                    not other_fields
+                ), f"Response should only contain {fields_list}, but also contains: {other_fields}"
 
     # @pytest.mark.dependency(depends=["test_POST_201"])
     def test_GET_200_includes(
