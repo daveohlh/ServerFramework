@@ -1,4 +1,4 @@
-# Server Framework Documentation
+# JamesonRGrieve's Server Framework
 
 ![Generation Paths](./Generation.png)
 
@@ -87,8 +87,6 @@ APP_EXTENSIONS=email,auth_mfa,database,payment
 ```
 
 ## Documentation Philosophy
-
-This framework's documentation follows these principles:
 
 1. **Architectural Focus**: Documentation describes the "why" and "how" of components, not just the "what"
 2. **Minimal Code Snippets**: Code examples are minimal; the documentation focuses on patterns and concepts

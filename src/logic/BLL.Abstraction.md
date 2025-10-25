@@ -56,6 +56,7 @@ class AbstractBLLManager:
 - `get(include=None, fields=None, **kwargs)` - Get single entity with optional relationships
 - `list(include=None, fields=None, sort_by=None, sort_order="asc", filters=None, limit=None, offset=None, **kwargs)` - List entities with filtering and pagination
 - `search(include=None, fields=None, sort_by=None, sort_order="asc", filters=None, limit=None, offset=None, **search_params)` - Advanced search with complex criteria
+- `fields` selections are validated against the SQLAlchemy mapper; unknown attributes raise a `ValueError`, ensuring API requests return a 422 instead of silently ignoring typos or causing loader errors.
 
 #### Update Operations  
 - `update(id: str, **kwargs)` - Update single entity

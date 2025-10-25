@@ -11,6 +11,7 @@ from extensions.AbstractExtensionProvider import (
     AbstractProviderInstance,
     AbstractStaticExtension,
     AbstractStaticProvider,
+    ExtensionType,
     ability,
 )
 from logic.BLL_Providers import ProviderInstanceModel
@@ -176,4 +177,5 @@ class EXT_Payment(AbstractStaticExtension):
     description: str = (
         "Payment extension providing comprehensive payment processing abilities via Provider Rotation System"
     )
+    types = {ExtensionType.DATABASE, ExtensionType.EXTERNAL}
     AbstractProvider = AbstractPaymentProvider

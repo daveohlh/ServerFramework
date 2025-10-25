@@ -562,6 +562,13 @@ class PydanticUtility:
                         )
                         continue
 
+                    # Skip abstract base classes
+                    if inspect.isabstract(cls):
+                        logger.debug(
+                            f"Skipping abstract base class {name} in relationship discovery"
+                        )
+                        continue
+
                     model_classes.append((name, cls))
                     processed_models.add(cls)
 
@@ -1811,7 +1818,20 @@ class ModelRegistry(AbstractRegistry):
             f"_process_extensions called with extension_registry: {self.extension_registry}"
         )
 
-        # First, register external models from PRV files
+        # First, discover extension models from BLL and PRV files
+        if self.extension_registry:
+            extension_names = [ext.name for ext in self.extension_registry.extensions]
+            logger.debug(
+                f"Discovering extension models for extensions: {extension_names}"
+            )
+            self.extension_registry.discover_extension_models(extension_names)
+            logger.debug(
+                f"Discovered extension models: {list(self.extension_registry.extension_models.keys())}"
+            )
+        else:
+            logger.debug("No ExtensionRegistry available for model discovery")
+
+        # Register external models from PRV files
         if not self.extension_registry:
             logger.debug(
                 "No ExtensionRegistry available for external model registration"

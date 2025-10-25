@@ -2,10 +2,13 @@ import base64
 import sys
 import uuid
 from pathlib import Path
+from types import NoneType
+from typing import Annotated, Any, List, Tuple, get_args, get_origin, ForwardRef
 
 import pytest
 from faker import Faker
 from fastapi.testclient import TestClient
+from pydantic import BaseModel as PydanticBaseModel
 
 # IMPORTANT: Set APP_EXTENSIONS BEFORE any application imports
 # Don't set globally - let fixtures handle environment isolation
@@ -23,6 +26,7 @@ if str(project_root) not in sys.path:
 
 from lib.Environment import env
 from lib.Logging import logger
+from lib.Pydantic import BaseModel as FrameworkBaseModel
 
 # Clear all registry caches to prevent conflicts during test setup
 from lib.Pydantic2SQLAlchemy import clear_registry_cache
@@ -45,6 +49,56 @@ from logic.BLL_Auth import (
 
 
 logger.debug(f"Added to sys.path: {src_path}, {project_root}")
+
+MODEL_BASE_CLASSES: Tuple[type, ...] = tuple(
+    {base for base in (FrameworkBaseModel, PydanticBaseModel) if base is not None}
+)
+
+
+def _annotation_includes_model(annotation: Any) -> bool:
+    """Return True when the provided annotation references a model type."""
+    if annotation is None:
+        return False
+
+    if isinstance(annotation, ForwardRef):
+        return True
+
+    origin = get_origin(annotation)
+    if origin is Annotated:
+        annotated_args = get_args(annotation)
+        return bool(annotated_args) and _annotation_includes_model(annotated_args[0])
+
+    if origin is None:
+        return isinstance(annotation, type) and any(
+            issubclass(annotation, model_base) for model_base in MODEL_BASE_CLASSES
+        )
+
+    return any(
+        _annotation_includes_model(arg)
+        for arg in get_args(annotation)
+        if arg is not NoneType
+    )
+
+
+def is_relationship_field(model_field: Any) -> bool:
+    """Determine whether a Pydantic model field represents a relationship."""
+    annotation = getattr(model_field, "annotation", None)
+    return _annotation_includes_model(annotation)
+
+
+def get_field_test_candidates(model_class: Any) -> List[str]:
+    """Return scalar field names that qualify for field selection tests."""
+    if not hasattr(model_class, "model_fields"):
+        return []
+
+    candidates: List[str] = []
+    for field_name, model_field in model_class.model_fields.items():
+        if field_name.startswith("_"):
+            continue
+        if is_relationship_field(model_field):
+            continue
+        candidates.append(field_name)
+    return candidates
 
 
 def pytest_generate_tests(metafunc):
@@ -93,9 +147,7 @@ def pytest_generate_tests(metafunc):
 
             if model_class and hasattr(model_class, "model_fields"):
                 # Generate parameter for each field in the model
-                field_names = list(model_class.model_fields.keys())
-                # Filter out private fields that start with underscore
-                field_names = [f for f in field_names if not f.startswith("_")]
+                field_names = get_field_test_candidates(model_class)
 
                 if field_names:
                     metafunc.parametrize("field_name", field_names)

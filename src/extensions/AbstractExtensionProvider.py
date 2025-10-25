@@ -1507,7 +1507,12 @@ class AbstractStaticExtension(
                         try:
                             from lib.Pydantic import AbstractExternalModel
 
-                            if issubclass(obj, AbstractExternalModel):
+                            # Only add concrete subclasses, not the abstract base class itself
+                            if (
+                                issubclass(obj, AbstractExternalModel)
+                                and obj is not AbstractExternalModel
+                                and not inspect.isabstract(obj)
+                            ):
                                 models.add(obj)
                         except:
                             pass

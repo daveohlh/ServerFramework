@@ -13,6 +13,7 @@ from typing import (
     Dict,
     List,
     Optional,
+    Set,
     Type,
     TypeVar,
     Union,
@@ -1721,6 +1722,72 @@ class AbstractBLLManager(ABC):
 
         return validated_fields
 
+    def _resolve_load_only_columns(self, fields_list: List[str]) -> List[Any]:
+        """Resolve field names to SQLAlchemy load_only compatible attributes."""
+        mapper = getattr(self.DB, "__mapper__", None)
+        if not mapper:
+            return []
+
+        mapper_attrs = getattr(mapper, "attrs", {})
+        mapper_keys = (
+            set(mapper_attrs.keys()) if hasattr(mapper_attrs, "keys") else set()
+        )
+
+        resolved: List[Any] = []
+        invalid: List[str] = []
+        seen: Set[str] = set()
+
+        for field_name in fields_list:
+            if field_name in mapper_keys and hasattr(self.DB, field_name):
+                if field_name not in seen:
+                    resolved.append(getattr(self.DB, field_name))
+                    seen.add(field_name)
+            else:
+                invalid.append(field_name)
+
+        # Ensure core audit fields remain available for DTO validation
+        required_field_names = [
+            "id",
+            "created_at",
+            "created_by_user_id",
+            "updated_at",
+            "updated_by_user_id",
+        ]
+
+        for required_name in required_field_names:
+            if (
+                required_name in mapper_keys
+                and hasattr(self.DB, required_name)
+                and required_name not in seen
+            ):
+                resolved.append(getattr(self.DB, required_name))
+                seen.add(required_name)
+
+        # Ensure required fields from the Pydantic model remain available
+        model_required_fields: Set[str] = set()
+        model_class = getattr(self, "Model", None)
+        model_fields = getattr(model_class, "model_fields", {}) if model_class else {}
+        for field_name, field_info in model_fields.items():
+            if hasattr(field_info, "is_required") and callable(field_info.is_required):
+                if field_info.is_required():
+                    model_required_fields.add(field_name)
+
+        for required_name in model_required_fields:
+            if (
+                required_name in mapper_keys
+                and hasattr(self.DB, required_name)
+                and required_name not in seen
+            ):
+                resolved.append(getattr(self.DB, required_name))
+                seen.add(required_name)
+
+        if invalid:
+            raise ValueError(
+                f"Invalid fields for {self.DB.__name__}: {', '.join(invalid)}"
+            )
+
+        return resolved
+
     @staticmethod
     def generate_joins(model_class, include_fields):
         """Generate join loads based on specified include fields.
@@ -1928,7 +1995,9 @@ class AbstractBLLManager(ABC):
 
             fields_list = self._parse_fields(fields)
             if fields_list:
-                options.append(load_only(*fields_list))
+                columns = self._resolve_load_only_columns(fields_list)
+                if columns:
+                    options.append(load_only(*columns))
 
         # Filter out hook-related parameters before passing to database
         db_kwargs = {k: v for k, v in kwargs.items() if k not in ["hook_processed"]}
@@ -1986,7 +2055,9 @@ class AbstractBLLManager(ABC):
 
             fields_list = self._parse_fields(fields)
             if fields_list:
-                options.append(load_only(*fields_list))
+                columns = self._resolve_load_only_columns(fields_list)
+                if columns:
+                    options.append(load_only(*columns))
         if sort_by:
             from sqlalchemy import asc, desc
 
@@ -2071,7 +2142,9 @@ class AbstractBLLManager(ABC):
 
             fields_list = self._parse_fields(fields)
             if fields_list:
-                options.append(load_only(*fields_list))
+                columns = self._resolve_load_only_columns(fields_list)
+                if columns:
+                    options.append(load_only(*columns))
 
         # Convert sort_by and sort_order to SQLAlchemy order_by expression
         if sort_by:

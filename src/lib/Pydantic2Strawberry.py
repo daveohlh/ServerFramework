@@ -492,6 +492,9 @@ class GraphQLManager(ErrorHandlerMixin):
 
             # Create field annotations for the class
             annotations: Dict[str, Type] = {}
+            # Track field name mappings for resolvers (camelCase -> snake_case)
+            field_name_mappings: Dict[str, str] = {}
+
             for field_name, field_info in model_class.model_fields.items():
                 field_type = field_info.annotation
 
@@ -504,7 +507,12 @@ class GraphQLManager(ErrorHandlerMixin):
                     )
 
                 gql_field_type = self._convert_python_type_to_gql(field_type)
-                annotations[field_name] = gql_field_type
+                # Convert snake_case field names to camelCase for GraphQL (GraphQL convention)
+                gql_field_name = convert_field_name(field_name, use_camelcase=True)
+                annotations[gql_field_name] = gql_field_type
+                # Store mapping for resolver if names differ
+                if gql_field_name != field_name:
+                    field_name_mappings[gql_field_name] = field_name
 
             # Add reverse navigation properties
             if model_class in self._reverse_relationships:
@@ -597,6 +605,22 @@ class GraphQLManager(ErrorHandlerMixin):
             # Create fields dict to hold strawberry fields with resolvers
             fields_dict: Dict[str, Any] = {"__annotations__": annotations}
 
+            # Add field resolvers for camelCase -> snake_case mapping
+            # Strawberry needs explicit resolvers when GraphQL field names differ from Python attribute names
+            for gql_field_name, pydantic_field_name in field_name_mappings.items():
+                # Create a resolver that maps the camelCase GraphQL field to the snake_case Pydantic attribute
+                def make_resolver(py_field_name: str):
+                    def resolver(root) -> Any:
+                        # root is the Pydantic model instance
+                        return getattr(root, py_field_name, None)
+
+                    return resolver
+
+                # Use strawberry.field with a resolver to map GraphQL field name to Python attribute
+                fields_dict[gql_field_name] = strawberry.field(
+                    resolver=make_resolver(pydantic_field_name)
+                )
+
             # Add navigation resolver methods for reverse relationships
             if model_class in self._reverse_relationships:
                 for reverse_field_name, (
@@ -681,8 +705,11 @@ class GraphQLManager(ErrorHandlerMixin):
             if not self._is_already_optional(field_type):
                 field_type = Optional[field_type]
 
+            # Convert snake_case field names to camelCase for GraphQL input types
+            gql_field_name = convert_field_name(field_name, use_camelcase=True)
+
             gql_field_type = self._convert_python_type_to_gql(field_type)
-            annotations[field_name] = gql_field_type
+            annotations[gql_field_name] = gql_field_type
 
         # Always add at least one field to avoid empty input type error
         if not annotations:
@@ -1318,17 +1345,26 @@ class GraphQLManager(ErrorHandlerMixin):
         return context
 
     def _convert_input_to_dict(self, input_obj: Any) -> Dict[str, Any]:
-        """Convert input object to dictionary"""
+        """Convert input object to dictionary, converting camelCase keys to snake_case for Python/Pydantic compatibility"""
         if hasattr(input_obj, "model_dump"):
-            return input_obj.model_dump(exclude_none=True)
+            data = input_obj.model_dump(exclude_none=True)
         elif hasattr(input_obj, "__dict__"):
             # Convert from input object, excluding None values
-            result: Dict[str, Any] = {}
+            data: Dict[str, Any] = {}
             for k, v in input_obj.__dict__.items():
                 if v is not None and not k.startswith("_"):
-                    result[k] = v
-            return result
-        return {}
+                    data[k] = v
+        else:
+            return {}
+
+        # Convert camelCase keys to snake_case for Python/Pydantic compatibility
+        result: Dict[str, Any] = {}
+        for key, value in data.items():
+            # Convert camelCase to snake_case
+            snake_key = stringcase.snakecase(key)
+            result[snake_key] = value
+
+        return result
 
     def _get_create_input_type(self, model_class: Type[BaseModel]) -> Type:
         """Get or create the Create input type for a model"""
@@ -1375,7 +1411,9 @@ class GraphQLManager(ErrorHandlerMixin):
             gql_type = self._convert_python_type_to_gql(field_type)
             if not self._is_already_optional(gql_type):
                 gql_type = Optional[gql_type]
-            annotations[field_name] = gql_type
+            # Convert snake_case field names to camelCase for GraphQL input types
+            gql_field_name = convert_field_name(field_name, use_camelcase=True)
+            annotations[gql_field_name] = gql_type
 
         # Always add at least one field to avoid empty input type error
         if not annotations:
