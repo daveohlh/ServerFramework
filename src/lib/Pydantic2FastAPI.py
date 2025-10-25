@@ -1562,8 +1562,12 @@ def register_route(
                     # TODO: Add parent validation if needed
 
                 # Normalize include/fields query params to lists (accept comma-separated strings)
-                include_param = _normalize_query_list(getattr(query_params, "include", None))
-                fields_param = _normalize_query_list(getattr(query_params, "fields", None))
+                include_param = _normalize_query_list(
+                    getattr(query_params, "include", None)
+                )
+                fields_param = _normalize_query_list(
+                    getattr(query_params, "fields", None)
+                )
 
                 result = get_manager(manager, manager_property).get(
                     id=id, include=include_param, fields=fields_param
@@ -1632,8 +1636,12 @@ def register_route(
                     parent_id = request["path_params"][parent_param_name]
                     search_params[parent_param_name] = parent_id
 
-                include_param = _normalize_query_list(getattr(query_params, "include", None))
-                fields_param = _normalize_query_list(getattr(query_params, "fields", None))
+                include_param = _normalize_query_list(
+                    getattr(query_params, "include", None)
+                )
+                fields_param = _normalize_query_list(
+                    getattr(query_params, "fields", None)
+                )
 
                 results = get_manager(manager, manager_property).list(
                     include=include_param,
