@@ -647,11 +647,12 @@ def build_app(model_registry: ModelRegistry):
 
             try:
                 # Verify the JWT token
-                db_manager = request.app.state.model_registry.database_manager
+                # Pass the model_registry into UserManager.auth (auth expects model_registry as first arg)
+                model_registry = getattr(request.app.state, "model_registry", None)
                 user = UserManager.auth(
+                    model_registry=model_registry,
                     authorization=authorization,
                     request=request,
-                    db_manager=db_manager,
                 )
 
                 if not user:
@@ -721,16 +722,16 @@ def build_app(model_registry: ModelRegistry):
                     try:
                         from logic.BLL_Auth import UserManager
 
-                        # Get database manager from app state
-                        db_manager = getattr(request.app.state, "DB", None)
+                        # Get model_registry from app state and try JWT auth
+                        model_registry = getattr(request.app.state, "model_registry", None)
                         logger.debug(
-                            f"GraphQL context: db_manager available = {db_manager is not None}"
+                            f"GraphQL context: model_registry available = {model_registry is not None}"
                         )
-                        if db_manager:
+                        if model_registry:
                             user = UserManager.auth(
+                                model_registry=model_registry,
                                 authorization=auth_header,
                                 request=request,
-                                db_manager=db_manager,
                             )
                             if user and hasattr(user, "id"):
                                 context["requester_id"] = user.id
