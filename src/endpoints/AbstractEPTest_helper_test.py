@@ -44,24 +44,23 @@ class DummyServer:
 
 
 def test_encode_query_values_with_lists():
-    assert AbstractEndpointTest._encode_query_values(["id"]) == "id"
+    assert AbstractEndpointTest._serialize_query_values(["id"]) == "id"
     assert (
-        AbstractEndpointTest._encode_query_values(["id", "name", "created_at"])
+        AbstractEndpointTest._serialize_query_values(["id", "name", "created_at"])
         == "id,name,created_at"
     )
 
 
 def test_encode_query_values_trims_and_deduplicates():
-    assert AbstractEndpointTest._encode_query_values("id,name") == "id,name"
+    assert AbstractEndpointTest._serialize_query_values("id,name") == "id,name"
     assert (
-        AbstractEndpointTest._encode_query_values([" id ", "name", "id"]) == "id,name"
+        AbstractEndpointTest._serialize_query_values([" id ", "name", "id"]) == "id,name"
     )
     assert (
-        AbstractEndpointTest._encode_query_values(("team.members", "team.members"))
+        AbstractEndpointTest._serialize_query_values(("team.members", "team.members"))
         == "team.members"
     )
-    assert AbstractEndpointTest._encode_query_values(None) is None
-
+    assert AbstractEndpointTest._serialize_query_values(None) is None  
 
 def test_resolve_parent_context_uses_cached_parent_ids():
     dummy = DummyEndpointTest()
