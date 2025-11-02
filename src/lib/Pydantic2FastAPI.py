@@ -1326,9 +1326,32 @@ def handle_resource_operation_error(err: Exception) -> None:
     """Handle resource operation errors and raise appropriate HTTP exceptions."""
     if isinstance(err, ValidationError):
         try:
-            details = err.errors()
-        except TypeError:
+            details = []
+            for error in err.errors():
+                error_dict = error.copy()
+                # Convert any Pydantic models in the error input to dicts for JSON serialization
+                if 'input' in error_dict and error_dict['input'] is not None:
+                    input_value = error_dict['input']
+                    # Handle dict with Pydantic model values
+                    if isinstance(input_value, dict):
+                        serialized_input = {}
+                        for key, value in input_value.items():
+                            if hasattr(value, 'model_dump'):
+                                serialized_input[key] = value.model_dump()
+                            elif hasattr(value, 'dict'):
+                                serialized_input[key] = value.dict()
+                            else:
+                                serialized_input[key] = value
+                        error_dict['input'] = serialized_input
+                    # Handle Pydantic model directly
+                    elif hasattr(input_value, 'model_dump'):
+                        error_dict['input'] = input_value.model_dump()
+                    elif hasattr(input_value, 'dict'):
+                        error_dict['input'] = input_value.dict()
+                details.append(error_dict)
+        except (TypeError, AttributeError):
             details = str(err)
+        
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"message": "Validation error", "details": details},
@@ -1448,6 +1471,8 @@ def register_route(
         resource_name_plural = manager_property
         resource_name = inflection.singular_noun(resource_name_plural)
         child_base_model = child_manager_class.BaseModel
+        if not resource_name:
+            resource_name = resource_name_plural
         if model_registry and hasattr(model_registry, "apply"):
             try:
                 child_base_model = model_registry.apply(child_base_model)
@@ -1467,7 +1492,7 @@ def register_route(
         # ).Network
     else:
         resource_name = stringcase.snakecase(
-            manager_class.__name__.replace("Manager", "")
+            bound_base_model.__name__.replace("Model", "")
         )
         resource_name_plural = inflection.plural(resource_name)
         if not hasattr(bound_base_model, "Network"):
