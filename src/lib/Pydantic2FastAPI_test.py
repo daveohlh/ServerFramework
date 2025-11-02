@@ -35,6 +35,7 @@ class TestModel(BaseModel):
     id: Optional[str] = None
     name: str
     value: Optional[int] = None
+    children: Optional[List[Dict[str, Any]]] = None
 
     # Model.Manager pattern
     Manager: ClassVar[Optional[Type]] = None
