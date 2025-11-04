@@ -343,7 +343,7 @@ class TestDataHandling:
         """Test serializing Pydantic model."""
         model = TestModel(id="1", name="test")
         serialized = serialize_for_response(model)
-        assert serialized == {"id": "1", "name": "test", "value": None}
+        assert serialized == {"id": "1", "name": "test", "value": None, "children": None}
 
     def test_serialize_for_response_list(self):
         """Test serializing list of models."""
