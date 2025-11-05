@@ -1799,35 +1799,44 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
         response_data = response.json()
         assert "invalid" in str(response_data).lower() and "field" in str(response_data).lower(), \
             f"Expected error about invalid fields, got: {response_data}"
-
+        
     def test_GET_422_invalid_includes(self, server: Any, admin_a: Any, team_a: Any):
         """Test that GET endpoint rejects invalid include parameters."""
         self._create(server, admin_a.jwt, admin_a.id, key="get_invalid_includes")
         entity = self.tracked_entities["get_invalid_includes"]
 
-        # Try to get entity with invalid includes
+        # Extract parent IDs if needed for nested endpoints
+        path_parent_ids = {}
+        if self.parent_entities:
+            for parent in self.parent_entities:
+                if parent.foreign_key in entity:
+                    parent_id = entity[parent.foreign_key]
+                    if parent.path_level in [1, 2] or (
+                        hasattr(parent, "is_path") and parent.is_path
+                    ):
+                        path_parent_ids[f"{parent.name}_id"] = parent_id
+
+        # Build endpoint with query string for includes
+        endpoint = self.get_detail_endpoint(entity["id"], path_parent_ids)
+        
+        # Try to get entity with invalid includes as query parameter
         response = server.get(
-            self.get_detail_endpoint(
-                entity["id"], {"include": "invalid_relation,another_invalid"}
-            ),
+            f"{endpoint}?include=invalid_relation,another_invalid",
             headers=self._get_appropriate_headers(admin_a.jwt),
         )
+        
         self._assert_response_status(
             response,
             422,
             "GET with invalid includes",
-            self.get_detail_endpoint(
-                entity["id"], {"include": "invalid_relation,another_invalid"}
-            ),
+            endpoint,
         )
 
-        # Check that error message mentions invalid includes (only if validation is enabled)
+        # Check that error message mentions invalid includes
         response_data = response.json()
-        if "Invalid includes" in str(response_data):
-            # Validation is working
-            assert "Invalid includes" in str(
-                response_data
-            ), f"Expected 'Invalid includes' in error message, got: {response_data}"
+        assert "invalid" in str(response_data).lower() and "include" in str(response_data).lower(), \
+            f"Expected error about invalid includes, got: {response_data}"
+
 
     def test_GET_422_unknown_query_param(self, server: Any, admin_a: Any, team_a: Any):
         """Test that GET endpoint rejects unknown query parameters."""
@@ -1855,24 +1864,39 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
     def test_GET_422_list_fields_invalid(self, server: Any, admin_a: Any, team_a: Any):
         """Test that LIST endpoint rejects invalid field parameters."""
         self._create(server, admin_a.jwt, admin_a.id, key="list_invalid_fields")
+        entity = self.tracked_entities["list_invalid_fields"]
 
+        # Extract parent IDs if needed for nested endpoints
+        path_parent_ids = {}
+        if self.parent_entities:
+            for parent in self.parent_entities:
+                if parent.foreign_key in entity:
+                    parent_id = entity[parent.foreign_key]
+                    if parent.path_level in [1, 2] or (
+                        hasattr(parent, "is_path") and parent.is_path
+                    ):
+                        path_parent_ids[f"{parent.name}_id"] = parent_id
+
+        # Build endpoint with invalid fields query parameter
+        endpoint = self.get_list_endpoint(path_parent_ids)
+        
         # Try to list entities with invalid fields
         response = server.get(
-            self.get_list_endpoint({"fields": "invalid_field,another_invalid"}),
+            f"{endpoint}?fields=invalid_field,another_invalid",
             headers=self._get_appropriate_headers(admin_a.jwt),
         )
+        
         self._assert_response_status(
             response,
             422,
             "LIST with invalid fields",
-            self.get_list_endpoint({"fields": "invalid_field,another_invalid"}),
+            endpoint,
         )
 
         # Check that error message mentions invalid fields
         response_data = response.json()
-        assert "Invalid fields" in str(
-            response_data
-        ), f"Expected 'Invalid fields' in error message, got: {response_data}"
+        assert "invalid" in str(response_data).lower() and "field" in str(response_data).lower(), \
+            f"Expected error about invalid fields, got: {response_data}"
 
     def test_GET_422_list_invalid_sort_by(self, server: Any, admin_a: Any, team_a: Any):
         """Test that LIST endpoint rejects invalid sort_by parameters."""
