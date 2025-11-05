@@ -302,6 +302,11 @@ def create_query_model_dependency(
         for raw_key, raw_value in request.query_params.multi_items():
             normalized_key = _normalize_query_key(raw_key)
             field_name = alias_map.get(normalized_key, normalized_key)
+            if field_name is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Unexpected query parameter '{raw_key}"
+                )
             raw_values.setdefault(field_name, []).append(raw_value)
 
         parsed: Dict[str, Any] = {}
@@ -317,8 +322,10 @@ def create_query_model_dependency(
                 parsed[field_name] = _coerce_sequence_values(values)
             else:
                 parsed[field_name] = values[-1]
-
-        return model_cls(**parsed)
+        try:
+            return model_cls(**parsed)
+        except ValidationError as e:
+            raise HTTPException(status_code=422, detail=e.errors())
 
     return dependency
 
