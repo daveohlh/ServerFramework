@@ -1573,6 +1573,7 @@ def register_route(
             dependencies=dependencies,
             responses=responses,
         )
+        
         async def get_resource(
             request: Dict = Depends(get_request_info),
             id: str = Path(
@@ -1593,6 +1594,23 @@ def register_route(
                 fields_param = _normalize_query_list(
                     getattr(query_params, "fields", None)
                 )
+
+                if fields_param:
+                    # Get valid field names from the target model
+                    valid_fields = set(target_model.model_fields.keys())
+                
+                    # Check for invalid fields
+                    invalid_fields = [f for f in fields_param if f not in valid_fields]
+                
+                    if invalid_fields:
+                        raise HTTPException(
+                            status_code=422,
+                            detail={
+                                "error": f"Invalid fields requested: {', '.join(invalid_fields)}",
+                                "invalid_fields": invalid_fields,
+                                "valid_fields": sorted(list(valid_fields))
+                            }
+                        )
 
                 result = get_manager(manager, manager_property).get(
                     id=id, include=include_param, fields=fields_param
@@ -1724,6 +1742,23 @@ def register_route(
                 fields_param = _normalize_query_list(
                     getattr(query_params, "fields", None)
                 )
+
+                if fields_param:
+                    # Get valid field names from the target model
+                    valid_fields = set(target_model.model_fields.keys())
+                    
+                    # Check for invalid fields
+                    invalid_fields = [f for f in fields_param if f not in valid_fields]
+                    
+                    if invalid_fields:
+                        raise HTTPException(
+                            status_code=422,
+                            detail={
+                                "error": f"Invalid fields requested: {', '.join(invalid_fields)}",
+                                "invalid_fields": invalid_fields,
+                                "valid_fields": sorted(list(valid_fields))
+                            }
+                        )
 
                 results = get_manager(manager, manager_property).list(
                     include=include_param,
