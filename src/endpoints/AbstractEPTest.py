@@ -1843,23 +1843,37 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
         self._create(server, admin_a.jwt, admin_a.id, key="get_unknown_param")
         entity = self.tracked_entities["get_unknown_param"]
 
+        # Extract parent IDs if needed for nested endpoints
+        path_parent_ids = {}
+        if self.parent_entities:
+            for parent in self.parent_entities:
+                if parent.foreign_key in entity:
+                    parent_id = entity[parent.foreign_key]
+                    if parent.path_level in [1, 2] or (
+                        hasattr(parent, "is_path") and parent.is_path
+                    ):
+                        path_parent_ids[f"{parent.name}_id"] = parent_id
+
+        # Build endpoint with unknown query parameter
+        endpoint = self.get_detail_endpoint(entity["id"], path_parent_ids)
+        
         # Try to get entity with unknown query parameter
         response = server.get(
-            self.get_detail_endpoint(entity["id"], {"unknown_param": "some_value"}),
+            f"{endpoint}?unknown_param=some_value",
             headers=self._get_appropriate_headers(admin_a.jwt),
         )
+        
         self._assert_response_status(
             response,
             422,
             "GET with unknown query parameter",
-            self.get_detail_endpoint(entity["id"], {"unknown_param": "some_value"}),
+            endpoint,
         )
 
         # Check that error message mentions extra fields
         response_data = response.json()
-        assert "extra" in str(response_data) or "forbidden" in str(
-            response_data
-        ), f"Expected 'extra'/'forbidden' in error message, got: {response_data}"
+        assert "extra" in str(response_data).lower() or "forbidden" in str(response_data).lower(), \
+            f"Expected 'extra'/'forbidden' in error message, got: {response_data}"
 
     def test_GET_422_list_fields_invalid(self, server: Any, admin_a: Any, team_a: Any):
         """Test that LIST endpoint rejects invalid field parameters."""
