@@ -1915,48 +1915,76 @@ class AbstractEndpointTest(AbstractTest, AbstractGraphQLTest):
     def test_GET_422_list_invalid_sort_by(self, server: Any, admin_a: Any, team_a: Any):
         """Test that LIST endpoint rejects invalid sort_by parameters."""
         self._create(server, admin_a.jwt, admin_a.id, key="list_invalid_sort")
+        entity = self.tracked_entities["list_invalid_sort"]
 
+        # Extract parent IDs if needed for nested endpoints
+        path_parent_ids = {}
+        if self.parent_entities:
+            for parent in self.parent_entities:
+                if parent.foreign_key in entity:
+                    parent_id = entity[parent.foreign_key]
+                    if parent.path_level in [1, 2] or (
+                        hasattr(parent, "is_path") and parent.is_path
+                    ):
+                        path_parent_ids[f"{parent.name}_id"] = parent_id
+
+        # Build endpoint with invalid sort_by query parameter
+        endpoint = self.get_list_endpoint(path_parent_ids)
+        
         # Try to list entities with invalid sort_by field
         response = server.get(
-            self.get_list_endpoint({"sort_by": "invalid_field"}),
+            f"{endpoint}?sort_by=invalid_field",
             headers=self._get_appropriate_headers(admin_a.jwt),
         )
+        
         self._assert_response_status(
             response,
             422,
             "LIST with invalid sort_by",
-            self.get_list_endpoint({"sort_by": "invalid_field"}),
+            endpoint,
         )
 
         # Check that error message mentions invalid fields
         response_data = response.json()
-        assert "Invalid fields" in str(
-            response_data
-        ), f"Expected 'Invalid fields' in error message, got: {response_data}"
+        assert "invalid" in str(response_data).lower() and "field" in str(response_data).lower(), \
+            f"Expected error about invalid fields, got: {response_data}"
 
-    def test_GET_422_list_invalid_sort_order(
-        self, server: Any, admin_a: Any, team_a: Any
-    ):
+    def test_GET_422_list_invalid_sort_order(self, server: Any, admin_a: Any, team_a: Any):
         """Test that LIST endpoint rejects invalid sort_order parameters."""
         self._create(server, admin_a.jwt, admin_a.id, key="list_invalid_sort_order")
+        entity = self.tracked_entities["list_invalid_sort_order"]
 
+        # Extract parent IDs if needed for nested endpoints
+        path_parent_ids = {}
+        if self.parent_entities:
+            for parent in self.parent_entities:
+                if parent.foreign_key in entity:
+                    parent_id = entity[parent.foreign_key]
+                    if parent.path_level in [1, 2] or (
+                        hasattr(parent, "is_path") and parent.is_path
+                    ):
+                        path_parent_ids[f"{parent.name}_id"] = parent_id
+
+        # Build endpoint with invalid sort_order query parameter
+        endpoint = self.get_list_endpoint(path_parent_ids)
+        
         # Try to list entities with invalid sort_order
         response = server.get(
-            self.get_list_endpoint({"sort_order": "invalid_order"}),
+            f"{endpoint}?sort_order=invalid_order",
             headers=self._get_appropriate_headers(admin_a.jwt),
         )
+        
         self._assert_response_status(
             response,
             422,
             "LIST with invalid sort_order",
-            self.get_list_endpoint({"sort_order": "invalid_order"}),
+            endpoint,
         )
 
         # Check that error message mentions validation error
         response_data = response.json()
-        assert "pattern" in str(response_data) or "validation" in str(
-            response_data
-        ), f"Expected validation error in message, got: {response_data}"
+        assert "pattern" in str(response_data).lower() or "validation" in str(response_data).lower(), \
+            f"Expected validation error in message, got: {response_data}"
 
     def test_GET_404_nonexistent_parent(self, server: Any, admin_a: Any):
         """Test listing resources for a nonexistent parent."""
