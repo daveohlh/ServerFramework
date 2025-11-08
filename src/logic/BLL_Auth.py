@@ -4251,8 +4251,8 @@ class InvitationManager(AbstractBLLManager, RouterMixin):
         options = []
 
         fields = self.validate_fields(fields)
-
         include_list = self.validate_includes(include)
+        
         if include_list:
             options = self.generate_joins(self.DB, include_list)
 

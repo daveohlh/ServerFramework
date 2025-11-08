@@ -1768,48 +1768,26 @@ class AbstractBLLManager(ABC):
     def validate_includes(self, includes: Optional[Union[List[str], str]]) -> Optional[List[str]]:
         """
         Validate that requested includes exist as valid relationships for the model.
-        Returns the processed includes list.
-        Raises HTTPException 422 if invalid includes are provided.
-
-        Args:
-            includes: List of relationship names or CSV string of relationship names
-
-        Returns:
-            Processed list of valid includes, or None/empty list if no includes provided
-
-        Raises:
-            HTTPException: 422 status if invalid includes are detected
+        
+        This is a lightweight wrapper that uses generate_joins() for validation
+        without actually generating the join options.
         """
         if not includes:
             return includes
 
-        # Parse includes - handle both CSV strings and lists
         includes_list = self._parse_includes(includes)
-
+        
         if not includes_list:
             return includes_list
 
-        # Get valid relationships from the model registry
+        # Use generate_joins() for validation - it will raise HTTPException if invalid
+        # We discard the result since we only care about validation here
         try:
-            model_entry = getattr(self.model_registry, self.Model.__name__)
-            valid_relations = set(model_entry.relations.keys())
-        except (AttributeError, KeyError):
-            valid_relations = set()
-
-        # Check for invalid includes
-        provided_includes = set(includes_list)
-        invalid_includes = provided_includes - valid_relations
-
-        if invalid_includes:
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "error": "Invalid includes provided",
-                    "invalid_includes": sorted(list(invalid_includes)),
-                    "valid_includes": sorted(list(valid_relations)),
-                },
-            )
-
+            self.generate_joins(self.DB, includes_list)
+        except HTTPException:
+            # Re-raise the 422 error from generate_joins
+            raise
+        
         return includes_list
 
     def _resolve_load_only_columns(self, fields_list: List[str]) -> List[Any]:
@@ -1889,9 +1867,45 @@ class AbstractBLLManager(ABC):
         Returns:
             List of SQLAlchemy joinedload options
         """
+        """Generate join loads based on specified include fields."""
+        from sqlalchemy.orm import RelationshipProperty
+        from lib.Logging import logger
+        from fastapi import HTTPException, status
         from lib.Logging import logger
 
         joins = []
+        invalid_includes = []
+        valid_relationships = []
+
+        # Collect all valid relationships - try multiple detection methods
+        try:
+            # Method 1: Check __mapper__ (SQLAlchemy 1.x and 2.x)
+            if hasattr(model_class, '__mapper__'):
+                mapper = model_class.__mapper__
+                if hasattr(mapper, 'relationships'):
+                    for rel_name in mapper.relationships.keys():
+                        valid_relationships.append(rel_name)
+        except Exception as e:
+            logger.debug(f"Could not get relationships from __mapper__: {e}")
+
+        # Method 2: Check via dir() and property inspection (fallback)
+        if not valid_relationships:
+            for attr_name in dir(model_class):
+                if attr_name.startswith('_'):
+                    continue
+                try:
+                    attr = getattr(model_class, attr_name)
+                    # Check if it's a SQLAlchemy relationship
+                    if hasattr(attr, 'property'):
+                        if isinstance(attr.property, RelationshipProperty):
+                            valid_relationships.append(attr_name)
+                        elif hasattr(attr.property, 'mapper'):
+                            valid_relationships.append(attr_name)
+                except Exception:
+                    continue
+
+        # Remove duplicates
+        valid_relationships = sorted(list(set(valid_relationships)))
 
         # Helper: resolve a single attribute name to an actual relationship attribute
         def _resolve_relationship_attribute(cls, name):
