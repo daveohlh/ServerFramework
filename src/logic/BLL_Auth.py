@@ -2542,7 +2542,7 @@ class TeamManager(AbstractBLLManager, RouterMixin):
         fields = self.validate_fields(fields)
 
         options = []
-        include_list = self._parse_includes(include)
+        include_list = self.validate_includes(include)
         if include_list:
             options = self.generate_joins(self.DB, include_list)
         team = self.DB.get(
@@ -3060,7 +3060,8 @@ class RoleManager(AbstractBLLManager, RouterMixin):
         fields = self.validate_fields(fields)
 
         options = []
-        include_list = self._parse_includes(include)
+
+        include_list = self.validate_includes(include)
         if include_list:
             options = self.generate_joins(self.DB, include_list)
         role = self.DB.get(
@@ -4251,7 +4252,7 @@ class InvitationManager(AbstractBLLManager, RouterMixin):
 
         fields = self.validate_fields(fields)
 
-        include_list = self._parse_includes(include)
+        include_list = self.validate_includes(include)
         if include_list:
             options = self.generate_joins(self.DB, include_list)
 
