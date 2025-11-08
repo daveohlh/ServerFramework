@@ -1764,6 +1764,53 @@ class AbstractBLLManager(ABC):
             )
         
         return fields_list
+    
+    def validate_includes(self, includes: Optional[Union[List[str], str]]) -> Optional[List[str]]:
+        """
+        Validate that requested includes exist as valid relationships for the model.
+        Returns the processed includes list.
+        Raises HTTPException 422 if invalid includes are provided.
+
+        Args:
+            includes: List of relationship names or CSV string of relationship names
+
+        Returns:
+            Processed list of valid includes, or None/empty list if no includes provided
+
+        Raises:
+            HTTPException: 422 status if invalid includes are detected
+        """
+        if not includes:
+            return includes
+
+        # Parse includes - handle both CSV strings and lists
+        includes_list = self._parse_includes(includes)
+
+        if not includes_list:
+            return includes_list
+
+        # Get valid relationships from the model registry
+        try:
+            model_entry = getattr(self.model_registry, self.Model.__name__)
+            valid_relations = set(model_entry.relations.keys())
+        except (AttributeError, KeyError):
+            valid_relations = set()
+
+        # Check for invalid includes
+        provided_includes = set(includes_list)
+        invalid_includes = provided_includes - valid_relations
+
+        if invalid_includes:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "Invalid includes provided",
+                    "invalid_includes": sorted(list(invalid_includes)),
+                    "valid_includes": sorted(list(valid_relations)),
+                },
+            )
+
+        return includes_list
 
     def _resolve_load_only_columns(self, fields_list: List[str]) -> List[Any]:
         """Resolve field names to SQLAlchemy load_only compatible attributes."""
